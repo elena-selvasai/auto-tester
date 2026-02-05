@@ -1,175 +1,159 @@
-# 🤖 AI QA Automation
+# AI QA Automation
 
-PPTX 기획서를 분석하여 자동으로 테스트 시나리오를 생성하고, Playwright로 웹 테스트를 수행하는 AI 기반 QA 자동화 도구입니다.
+PPTX 기획서를 분석하여 자동으로 테스트 시나리오를 생성하고, Playwright로 웹 테스트를 수행하는 **Cursor 서브에이전트 기반** QA 자동화 도구입니다.
 
-## 📋 목차
+## 주요 기능
 
-- [주요 기능](#-주요-기능)
-- [프로젝트 구조](#-프로젝트-구조)
-- [설치 방법](#-설치-방법)
-- [환경 설정](#-환경-설정)
-- [사용 방법](#-사용-방법)
-- [워크플로우](#-워크플로우)
+- **문서 분석**: PPTX 기획서에서 텍스트, 표, 노트를 자동 추출
+- **AI 시나리오 생성**: Google Gemini AI를 활용한 테스트 시나리오 자동 작성
+- **웹 자동화 테스트**: Playwright 기반의 브라우저 자동화 테스트
+- **리포트 생성**: 테스트 결과를 Markdown 형식으로 출력
 
-## ✨ 주요 기능
-
-- **📄 문서 분석**: PPTX 기획서에서 텍스트, 표, 노트를 자동 추출
-- **🧠 AI 시나리오 생성**: Google Gemini AI를 활용한 테스트 시나리오 자동 작성
-- **🎭 웹 자동화 테스트**: Playwright 기반의 브라우저 자동화 테스트
-- **📊 리포트 생성**: 테스트 결과를 HTML/Excel 형식으로 출력
-
-## 📁 프로젝트 구조
+## 프로젝트 구조
 
 ```
 auto-tester/
-├── 📁 scripts/              # 실행 스크립트
-│   ├── doc_analyst.py       # PPTX 분석 및 시나리오 생성
-│   └── setup_project.py     # 프로젝트 초기화
-├── 📁 ai-qa-automation/     # 생성된 프로젝트 폴더
-│   ├── agents/              # 에이전트 스펙 문서
-│   ├── protocols/           # JSON 스키마 정의
+├── .cursor/
+│   └── agents/              # Cursor 서브에이전트 정의
+│       ├── qa-master.md     # 워크플로우 총괄
+│       ├── doc-analyst.md   # PPTX 문서 분석
+│       ├── test-architect.md # 테스트 케이스 설계
+│       └── qa-executor.md   # 테스트 실행
+├── ai-qa-automation/
 │   ├── inputs/              # 입력 파일 (PPTX)
 │   ├── outputs/             # 출력 결과물
-│   └── logs/screenshots/    # 로그 및 스크린샷
-├── 📁 venv/                 # Python 가상환경
-├── 📄 .env                  # 환경변수 설정 (Git 무시)
-├── 📄 .env.example          # 환경변수 템플릿
-├── 📄 requirements.txt      # Python 의존성
-└── 📄 README.md             # 프로젝트 문서
+│   └── run_test.py          # Playwright 테스트 스크립트
+└── README.md
 ```
 
-## 🚀 설치 방법
+## 사전 준비
 
-### 1. 저장소 클론
+### 1. Playwright 설치
 
 ```bash
-git clone <repository-url>
-cd auto-tester
-```
-
-### 2. Python 가상환경 생성 및 활성화
-
-```powershell
-# 가상환경 생성
-python -m venv venv
-
-# 가상환경 활성화 (PowerShell)
-.\venv\Scripts\Activate.ps1
-
-# 가상환경 활성화 (CMD)
-.\venv\Scripts\activate.bat
-```
-
-### 3. 의존성 설치
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Playwright 브라우저 설치
-
-```bash
+pip install playwright
 playwright install chromium
 ```
 
-## ⚙️ 환경 설정
+### 2. PPTX 기획서 준비
 
-### 환경변수 파일 (.env) 설정
+테스트할 기획서(PPTX 파일)를 `ai-qa-automation/inputs/` 폴더에 배치합니다.
 
-이 프로젝트는 API 키와 같은 민감한 정보를 `.env` 파일에서 관리합니다.
+---
 
-#### 1. 환경변수 파일 생성
+## 사용 방법
 
-```bash
-# .env.example을 복사하여 .env 파일 생성
-copy .env.example .env
-```
+### Step 1: QA 자동화 시작
 
-#### 2. API 키 설정
-
-`.env` 파일을 열고 실제 API 키를 입력합니다:
-
-```env
-# Google Gemini API Key
-GOOGLE_API_KEY=AIzaSy...실제_API_키_입력
-```
-
-#### 3. Google API 키 발급 방법
-
-1. [Google AI Studio](https://aistudio.google.com/app/apikey) 접속
-2. Google 계정으로 로그인
-3. **"Create API Key"** 클릭
-4. 생성된 API 키를 `.env` 파일에 붙여넣기
-
-### 환경변수 목록
-
-| 변수명 | 설명 | 필수 |
-|--------|------|:----:|
-| `GOOGLE_API_KEY` | Google Gemini API 키 | ✅ |
-
-> ⚠️ **보안 주의사항**
-> - `.env` 파일은 `.gitignore`에 포함되어 Git에 커밋되지 않습니다.
-> - API 키를 코드에 직접 하드코딩하지 마세요.
-> - `.env` 파일을 다른 사람과 공유하지 마세요.
-
-## 📖 사용 방법
-
-### 1. 프로젝트 폴더 구조 초기화
-
-```bash
-python scripts/setup_project.py
-```
-
-### 2. PPTX 시나리오 분석
-
-```bash
-# inputs/ 폴더에 PPTX 파일을 넣은 후 실행
-python scripts/doc_analyst.py
-```
-
-생성된 시나리오는 `outputs/scenario_draft.md`에 저장됩니다.
-
-## 🔄 워크플로우
+Cursor 채팅창에 다음과 같이 입력합니다:
 
 ```
-┌─────────────────┐
-│  PPTX 기획서    │
-│  (inputs/)      │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  DocAnalyst     │  ← Gemini AI 분석
-│  (문서 분석)    │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  TestArchitect  │  ← 테스트 케이스 설계
-│  (테스트 설계)  │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  QAExecutor     │  ← Playwright 실행
-│  (테스트 수행)  │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  테스트 리포트  │
-│  (outputs/)     │
-└─────────────────┘
+QA 자동화 시작해줘
 ```
 
-## 🛠️ 기술 스택
+### Step 2: 테스트 URL 및 사전 동작 입력
 
-- **Python 3.10+**
-- **Google Gemini AI** - 문서 분석 및 시나리오 생성
+에이전트가 테스트 실행을 위해 다음 정보를 요청합니다:
+
+| 항목 | 설명 | 예시 |
+|------|------|------|
+| **테스트 URL** | 테스트할 웹사이트 주소 | `http://localhost:3000` |
+| **사전 동작** | 테스트 전 클릭할 요소 (선택) | `button.start`, `#login-btn` |
+
+**입력 예시:**
+```
+url: http://localhost:13002/test/?projectId=16208&email=user@example.com&pwd=password123
+
+사전 동작: button.quiz-start (퀴즈 시작 버튼 클릭)
+```
+
+### Step 3: 결과 확인
+
+테스트 완료 후 결과물이 생성됩니다:
+- `ai-qa-automation/outputs/scenario_draft.md` - 테스트 시나리오
+- `ai-qa-automation/outputs/test_plan.json` - 테스트 플랜
+- `ai-qa-automation/outputs/REPORT.md` - 테스트 리포트
+- `ai-qa-automation/outputs/screenshot_*.png` - 스크린샷
+
+---
+
+## 워크플로우
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    사용자 → "QA 자동화 시작해줘"                 │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Phase 1: 문서 분석 (doc-analyst)                               │
+│  • inputs/ 폴더의 PPTX 파일 분석                                │
+│  • outputs/scenario_draft.md 생성                               │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Phase 2: 테스트 설계 (test-architect)                          │
+│  • scenario_draft.md 분석                                       │
+│  • outputs/test_plan.json 생성                                  │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Phase 3: 테스트 실행 (qa-executor)                             │
+│  ★ 사용자 입력 필요: URL, 사전 동작                             │
+│  • Playwright로 UI 테스트 수행                                  │
+│  • 스크린샷 캡처                                                │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Phase 4: 리포트 생성                                           │
+│  • outputs/REPORT.md 생성                                       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 서브에이전트 직접 호출
+
+특정 단계만 실행하고 싶을 때 사용합니다.
+
+### 문서 분석만 실행
+```
+@doc-analyst inputs/기획서.pptx 분석해줘
+```
+
+### 테스트만 실행
+```
+@qa-executor 테스트 실행해줘
+```
+
+에이전트가 URL과 사전 동작을 질문하면 다음과 같이 응답합니다:
+```
+url: http://localhost:3000/app
+사전 동작: #start-button 클릭
+```
+
+---
+
+## 주의 사항
+
+1. **테스트 URL 형식**: 전체 URL을 입력해야 합니다 (프로토콜 포함)
+   - 올바른 예: `http://localhost:3000/page`
+   - 잘못된 예: `localhost:3000/page`
+
+2. **사전 동작 선택자**: CSS 선택자 형식으로 입력합니다
+   - `button.start` - class가 start인 button
+   - `#login-btn` - id가 login-btn인 요소
+   - `[data-testid="submit"]` - data-testid 속성 선택
+
+3. **인증이 필요한 페이지**: URL에 쿼리 파라미터로 인증 정보를 포함하거나, 사전 동작으로 로그인 버튼 클릭을 지정합니다.
+
+---
+
+## 기술 스택
+
+- **Cursor Subagents** - AI 기반 워크플로우 자동화
 - **Playwright** - 웹 브라우저 자동화
 - **python-pptx** - PPTX 파일 파싱
-- **pytest** - 테스트 프레임워크
-
-## 📄 라이선스
-
-이 프로젝트는 MIT 라이선스를 따릅니다.
