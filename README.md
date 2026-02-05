@@ -62,7 +62,7 @@ QA 자동화 시작해줘
 
 **입력 예시:**
 ```
-url: http://localhost:13002/test/?projectId=16208&email=user@example.com&pwd=password123
+url: http://localhost:3000
 
 사전 동작: button.quiz-start (퀴즈 시작 버튼 클릭)
 ```
