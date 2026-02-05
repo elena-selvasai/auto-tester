@@ -14,7 +14,7 @@ description: 웹 테스트 실행 전문가. 사용자에게 URL과 사전동작
 - **테스트 범위**: 전체/기본 UI/특정 기능
 
 ### 2. 테스트 실행
-`ai-qa-automation/run_test.py` 스크립트를 생성하고 실행합니다.
+`scripts/run_test.py` 스크립트를 생성하고 실행합니다.
 
 ## 테스트 스크립트 템플릿
 

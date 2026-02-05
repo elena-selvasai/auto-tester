@@ -19,9 +19,9 @@ auto-tester/
 │       ├── doc-analyst.md   # PPTX 문서 분석
 │       ├── test-architect.md # 테스트 케이스 설계
 │       └── qa-executor.md   # 테스트 실행
-├── ai-qa-automation/
-│   ├── inputs/              # 입력 파일 (PPTX)
-│   ├── outputs/             # 출력 결과물
+├── inputs/                  # 입력 파일 (PPTX)
+├── outputs/                 # 출력 결과물
+├── scripts/
 │   └── run_test.py          # Playwright 테스트 스크립트
 └── README.md
 ```
@@ -37,7 +37,7 @@ playwright install chromium
 
 ### 2. PPTX 기획서 준비
 
-테스트할 기획서(PPTX 파일)를 `ai-qa-automation/inputs/` 폴더에 배치합니다.
+테스트할 기획서(PPTX 파일)를 `inputs/` 폴더에 배치합니다.
 
 ---
 
@@ -70,10 +70,10 @@ url: http://localhost:3000
 ### Step 3: 결과 확인
 
 테스트 완료 후 결과물이 생성됩니다:
-- `ai-qa-automation/outputs/scenario_draft.md` - 테스트 시나리오
-- `ai-qa-automation/outputs/test_plan.json` - 테스트 플랜
-- `ai-qa-automation/outputs/REPORT.md` - 테스트 리포트
-- `ai-qa-automation/outputs/screenshot_*.png` - 스크린샷
+- `outputs/scenario_draft.md` - 테스트 시나리오
+- `outputs/test_plan.json` - 테스트 플랜
+- `outputs/REPORT.md` - 테스트 리포트
+- `outputs/screenshot_*.png` - 스크린샷
 
 ---
 

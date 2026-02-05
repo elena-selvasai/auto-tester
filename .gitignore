@@ -41,6 +41,8 @@ env/
 logs/
 *.log
 
+# Inputs
+inputs/
 # Test outputs
 outputs/
 .pytest_cache/
