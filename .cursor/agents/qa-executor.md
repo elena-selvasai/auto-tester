@@ -1,5 +1,6 @@
 ---
 name: qa-executor
+model: default
 description: 웹 테스트 실행 전문가. 사용자에게 URL과 사전동작을 요청받아 Playwright로 테스트를 수행합니다.
 ---
 
@@ -8,39 +9,74 @@ description: 웹 테스트 실행 전문가. 사용자에게 URL과 사전동작
 ## 실행 전 필수 단계
 
 ### 1. 사용자에게 정보 요청
-테스트 실행 전 AskQuestion 도구로 다음 정보를 요청합니다:
+테스트 실행 전 다음 정보를 확인합니다:
 - **테스트 URL**: 테스트할 웹사이트 주소
 - **사전 동작**: 테스트 전 수행할 동작 (버튼 클릭, 로그인 등)
-- **테스트 범위**: 전체/기본 UI/특정 기능
 
-### 2. 테스트 실행
-`scripts/run_test.py` 스크립트를 생성하고 실행합니다.
+### 2. DOM 구조 분석 (중요!)
+테스트 실행 전 반드시 `browser_snapshot`으로 실제 페이지 구조를 확인합니다:
+- 실제 존재하는 선택자 확인
+- test_plan.json의 선택자와 비교
+- 필요시 선택자 수정
 
-## 테스트 스크립트 템플릿
+### 3. 테스트 실행
+브라우저 도구를 사용하여 테스트를 수행합니다.
 
-```python
-from playwright.sync_api import sync_playwright
+## 테스트 실행 규칙
 
-TEST_URL = "사용자_입력_URL"
-PRE_ACTION = "사용자_입력_선택자"
+### 1. 페이지 로드 확인
+```
+1. browser_navigate로 URL 접속
+2. browser_wait_for로 주요 요소 로드 대기 (2-3초)
+3. browser_snapshot으로 페이지 구조 확인
+```
 
-with sync_playwright() as p:
-    browser = p.chromium.launch(headless=False)
-    page = browser.new_page()
-    
-    # 1. 페이지 로드
-    page.goto(TEST_URL)
-    
-    # 2. 사전 동작
-    page.click(PRE_ACTION)
-    
-    # 3. UI 테스트
-    buttons = page.query_selector_all("button:visible")
-    
-    # 4. 스크린샷
-    page.screenshot(path="screenshot.png")
-    
-    browser.close()
+### 2. 선택자 검증 프로세스
+```
+1. browser_snapshot 결과에서 ref 값 확인
+2. 실제 ref 값을 사용하여 클릭/입력 수행
+3. test_plan.json의 selector가 없으면 텍스트 기반으로 찾기
+```
+
+### 3. 에러 핸들링
+- 요소를 찾지 못하면: 대체 선택자 시도
+- 클릭이 안되면: 스크롤 후 재시도
+- 타임아웃 발생 시: 페이지 새로고침 후 재시도 (최대 2회)
+
+### 4. 스크린샷 저장 규칙
+모든 스크린샷은 `outputs/` 폴더에 저장:
+```
+browser_take_screenshot(filename="outputs/screenshot_XX_name.png")
+```
+
+필수 캡처 시점:
+- 초기 화면 로드 후
+- 주요 인터랙션 전/후
+- 에러 발생 시
+- 테스트 완료 시
+
+## 테스트 결과 저장
+
+테스트 완료 후 `outputs/test_result.json`에 결과 저장:
+
+```json
+{
+  "test_execution_id": "TE_001",
+  "execution_date": "YYYY-MM-DD",
+  "url": "테스트 URL",
+  "total": 10,
+  "passed": 8,
+  "failed": 2,
+  "results": [
+    {
+      "tc_id": "TC_001",
+      "name": "테스트명",
+      "status": "passed|failed",
+      "message": "상세 결과",
+      "screenshot": "screenshot_XX.png"
+    }
+  ]
+}
 ```
 
 ## 리포트 형식
@@ -57,3 +93,10 @@ with sync_playwright() as p:
 ## Results
 | TC ID | Name | Status | Message |
 ```
+
+## 주의사항
+
+1. **실제 DOM 우선**: test_plan.json보다 실제 페이지 구조가 우선
+2. **대기 시간 충분히**: 애니메이션, 로딩 고려하여 wait 추가
+3. **실패 시 증거 수집**: 실패한 테스트는 반드시 스크린샷 캡처
+4. **순차 실행**: 의존성 있는 테스트는 순서대로 실행
