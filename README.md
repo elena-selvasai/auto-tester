@@ -1,24 +1,31 @@
 # AI QA Automation
 
-PPTX 기획서를 분석하여 자동으로 테스트 시나리오를 생성하고, Playwright로 웹 테스트를 수행하는 **Cursor 서브에이전트 기반** QA 자동화 도구입니다.
+PPTX 기획서를 분석하여 자동으로 테스트 시나리오를 생성하고, Playwright로 웹 테스트를 수행하는 **Cursor 서브에이전트 및 Skill 기반** QA 자동화 도구입니다.
 
 ## 주요 기능
 
 - **문서 분석**: PPTX 기획서에서 텍스트, 표, 노트를 자동 추출
-- **AI 시나리오 생성**: Google Gemini AI를 활용한 테스트 시나리오 자동 작성
+- **AI 시나리오 생성**: AI를 활용한 테스트 시나리오 자동 작성
 - **웹 자동화 테스트**: Playwright 기반의 브라우저 자동화 테스트
 - **리포트 생성**: 테스트 결과를 Markdown 형식으로 출력
+- **스크린샷 캡처**: 테스트 단계별 스크린샷 자동 저장
 
 ## 프로젝트 구조
 
 ```
 auto-tester/
 ├── .cursor/
-│   └── agents/              # Cursor 서브에이전트 정의
-│       ├── qa-master.md     # 워크플로우 총괄
-│       ├── doc-analyst.md   # PPTX 문서 분석
-│       ├── test-architect.md # 테스트 케이스 설계
-│       └── qa-executor.md   # 테스트 실행
+│   ├── agents/              # Cursor 서브에이전트 정의
+│   │   ├── qa-master.md     # 워크플로우 총괄
+│   │   ├── doc-analyst.md   # PPTX 문서 분석
+│   │   ├── test-architect.md # 테스트 케이스 설계
+│   │   └── qa-executor.md   # 테스트 실행
+│   └── skills/              # Cursor Skill 정의
+│       └── qa-automation/   # QA 자동화 통합 Skill
+│           ├── SKILL.md
+│           └── scripts/
+│               ├── extract_pptx.py
+│               └── validate_json.py
 ├── inputs/                  # 입력 파일 (PPTX)
 ├── outputs/                 # 출력 결과물
 ├── scripts/
@@ -28,10 +35,10 @@ auto-tester/
 
 ## 사전 준비
 
-### 1. Playwright 설치
+### 1. 필수 패키지 설치
 
 ```bash
-pip install playwright
+pip install playwright python-pptx
 playwright install chromium
 ```
 
@@ -152,8 +159,57 @@ url: http://localhost:3000/app
 
 ---
 
+## Skill vs 서브에이전트
+
+본 프로젝트는 두 가지 방식으로 QA 자동화를 실행할 수 있습니다.
+
+| 방식 | 경로 | 특징 |
+|------|------|------|
+| **Skill** | `.cursor/skills/qa-automation/` | 전체 워크플로우 자동 적용, 빠른 실행 |
+| **서브에이전트** | `.cursor/agents/` | 개별 Phase 실행, 세밀한 커스터마이징 |
+
+### Skill 자동 트리거 키워드
+
+다음 키워드 입력 시 qa-automation skill이 자동 적용됩니다:
+- "QA 자동화"
+- "테스트 시작"
+- "기획서 분석"
+- "QA 테스트"
+
+---
+
+## 유틸리티 스크립트
+
+### PPTX 내용 추출
+
+```bash
+python .cursor/skills/qa-automation/scripts/extract_pptx.py inputs/파일명.pptx
+```
+
+### test_plan.json 검증
+
+```bash
+python .cursor/skills/qa-automation/scripts/validate_json.py outputs/test_plan.json
+```
+
+---
+
+## 출력 파일
+
+테스트 완료 후 `outputs/` 폴더에 생성되는 파일:
+
+| 파일 | 설명 |
+|------|------|
+| `scenario_draft.md` | 테스트 시나리오 |
+| `test_plan.json` | JSON 테스트 플랜 |
+| `test_result.json` | 테스트 실행 결과 |
+| `REPORT.md` | 최종 테스트 리포트 |
+| `screenshot_*.png` | 테스트 스크린샷 (6개) |
+
+---
+
 ## 기술 스택
 
-- **Cursor Subagents** - AI 기반 워크플로우 자동화
+- **Cursor Skills & Subagents** - AI 기반 워크플로우 자동화
 - **Playwright** - 웹 브라우저 자동화
 - **python-pptx** - PPTX 파일 파싱
