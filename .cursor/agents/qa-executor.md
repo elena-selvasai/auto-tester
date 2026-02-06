@@ -55,6 +55,17 @@ browser_take_screenshot(filename="outputs/screenshot_XX_name.png")
 - 에러 발생 시
 - 테스트 완료 시
 
+### 5. 화면 비교 (compare_with_reference)
+test_plan.json 액션에 `compare_with_reference`가 있으면:
+1. 해당 단계에서 스크린샷 촬영
+2. `python .cursor/skills/qa-automation/scripts/compare_screenshot.py <참조이미지> <스크린샷> [--threshold 10]` 실행
+3. 일치 여부를 테스트 결과/리포트에 반영 (기획서와 시각적 차이 시 기록)
+
+참조 이미지는 Phase 1 문서 추출 시 `outputs/reference/`에 저장된 파일을 사용.
+
+### 6. 구성 체크
+`outputs/scenario_draft_source.md` 하단 "구성 체크 리스트"에 페이지별 예상 표시 요소가 있으면, 해당 화면에서 해당 텍스트/요소가 DOM 또는 스크린샷에 존재하는지 check 액션으로 확인.
+
 ## 테스트 결과 저장
 
 테스트 완료 후 `outputs/test_result.json`에 결과 저장:
@@ -100,3 +111,4 @@ browser_take_screenshot(filename="outputs/screenshot_XX_name.png")
 2. **대기 시간 충분히**: 애니메이션, 로딩 고려하여 wait 추가
 3. **실패 시 증거 수집**: 실패한 테스트는 반드시 스크린샷 캡처
 4. **순차 실행**: 의존성 있는 테스트는 순서대로 실행
+5. **오답 테스트 필수 수행**: 정오답 채점 시 오답 테스트(TC)는 정답으로 대체하지 말고, 페이지 새로고침 또는 해당 문제 화면으로 이동한 뒤 실제 오답을 선택하여 '오답입니다' 표시·피드백을 검증

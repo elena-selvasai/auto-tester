@@ -1,18 +1,18 @@
 ---
 name: qa-automation
-description: PPTX 기획서를 분석하여 테스트 시나리오를 생성하고 Playwright로 웹 테스트를 자동 수행. "QA 자동화", "테스트 시작", "기획서 분석", "QA 테스트" 언급 시 자동 적용.
+description: 시나리오 문서(PPTX/DOCX/PDF/이미지)를 분석하여 테스트 시나리오를 생성하고, 이미지 추출·화면 비교·구성 체크와 Playwright 웹 테스트를 자동 수행. "QA 자동화", "테스트 시작", "기획서 분석", "QA 테스트" 언급 시 자동 적용.
 ---
 
 # QA 자동화
 
-PPTX 기획서 분석부터 웹 테스트 실행, 리포트 생성, GitHub 이슈 등록까지 전체 QA 워크플로우를 자동화합니다.
+시나리오 문서(PPTX, DOCX, PDF, 이미지) 분석부터 참조 이미지 추출, 웹 테스트 실행, 화면 비교·구성 체크, 리포트 생성, GitHub 이슈 등록까지 전체 QA 워크플로우를 자동화합니다.
 
 ## 빠른 시작
 
 사용자가 "QA 자동화 시작해줘"라고 하면:
 
 1. **Phase 0**: 사전 검증 (GitHub CLI 설치/로그인 확인)
-2. `inputs/` 폴더의 PPTX 파일 확인
+2. `inputs/` 폴더의 시나리오 문서 확인 (PPTX, DOCX, PDF, 이미지)
 3. 사용자에게 요청:
    - 테스트 URL
    - 이슈 등록할 GitHub 리포지토리 (`owner/repo` 형식)
@@ -51,18 +51,23 @@ gh auth status      # 로그인 상태 확인
 
 ### Phase 1: 문서 분석
 
-PPTX에서 테스트 시나리오 추출:
+**지원 포맷:** PPTX, DOCX, PDF, 이미지(PNG/JPG 등). 단일 진입 스크립트로 자동 감지:
 
 ```bash
-python .cursor/skills/qa-automation/scripts/extract_pptx.py inputs/파일명.pptx
+python .cursor/skills/qa-automation/scripts/extract_document.py inputs/ --output outputs
 ```
 
-출력: `outputs/scenario_draft.md`
+- 경로에 디렉터리를 주면 지원 확장자 첫 파일 사용. 단일 파일도 가능: `extract_document.py inputs/기획서.pptx --output outputs`
+
+**출력:**
+- `outputs/extract_result.json` - 공통 스키마 (pages[], reference_images[])
+- `outputs/scenario_draft_source.md` - 추출 요약 + **구성 체크 리스트**(페이지별 예상 표시 요소)
+- `outputs/reference/` - 기획서에서 추출·렌더한 참조 이미지 (슬라이드/페이지별)
 
 **추출 항목:**
-- 슬라이드별 텍스트, 표, 노트
-- 기능별 분류 (Critical/High/Medium/Low)
-- 테스트 케이스 도출 (정상/에러/경계값)
+- 페이지/슬라이드별 텍스트, 표, 노트, 삽입 이미지
+- 참조 이미지 저장 → 테스트 단계에서 화면 비교(compare_screenshot)에 사용
+- 구성 체크 리스트 → 테스트 step에서 필수 문구/요소 존재 여부 check에 활용
 
 ### Phase 2: 테스트 설계
 
@@ -147,7 +152,9 @@ scenario_draft.md → test_plan.json 변환:
 - TC_151~180: 엣지 케이스 (edge_case) - 최소 3개
 - TC_181~200: 접근성 (accessibility) - 최소 2개
 
-**지원 액션:** navigate, click, input, check, wait, screenshot, hover
+**지원 액션:** navigate, click, input, check, wait, screenshot, hover, check_attribute, compare_with_reference
+
+**compare_with_reference:** 참조 이미지(기획서)와 현재 스크린샷 유사도 비교. 액션 예: `{"action": "compare_with_reference", "reference": "outputs/reference/slide_6.png", "screenshot": "outputs/screenshot_01_initial.png"}` → `compare_screenshot.py` 호출로 일치 여부 판정.
 
 **선택자 우선순위:** data-testid > id > aria-label > class
 
@@ -176,6 +183,12 @@ outputs/screenshot_tc101_*.png        - 항목 재방문
 outputs/screenshot_tc151_*.png        - 토글 동작
 outputs/screenshot_tc152_*.png        - 오류 후 재시도
 ```
+
+**화면 비교·구성 체크:**
+- 참조 이미지가 있으면: 해당 단계 스크린샷 촬영 후 `python .cursor/skills/qa-automation/scripts/compare_screenshot.py <참조경로> <스크린샷경로> [--threshold 10]` 실행. 일치 여부를 결과/리포트에 반영.
+- 구성 체크: `outputs/scenario_draft_source.md`의 "구성 체크 리스트"에 있는 페이지별 예상 요소를 DOM/스크린샷에서 확인 (check 액션 또는 텍스트 존재 여부).
+
+**오답 테스트:** 정오답 채점 시 오답 TC는 정답으로 대체하지 말고, 새로고침 또는 해당 화면 이동 후 실제 오답 선택 → '오답입니다' 표시·피드백 검증 필수.
 
 **에러 핸들링:**
 - 요소 못 찾음 → 대체 선택자 시도
@@ -284,9 +297,20 @@ gh issue create -R {owner/repo} --title "[QA] {이슈ID}: {제목}" --body-file 
 
 ## 유틸리티 스크립트
 
-**PPTX 추출:**
+**문서 추출 (통합, 다중 포맷):**
 ```bash
-python .cursor/skills/qa-automation/scripts/extract_pptx.py <pptx_path>
+python .cursor/skills/qa-automation/scripts/extract_document.py <path> [--output outputs] [--reference-dir outputs/reference]
+```
+- path: 파일 경로 또는 inputs/ 등 디렉터리 (지원: .pptx, .docx, .pdf, .png, .jpg, .jpeg)
+
+**PPTX만 추출:**
+```bash
+python .cursor/skills/qa-automation/scripts/extract_pptx.py <pptx_path> [--reference-dir outputs/reference]
+```
+
+**화면 비교 (참조 vs 실제 스크린샷):**
+```bash
+python .cursor/skills/qa-automation/scripts/compare_screenshot.py <reference_image> <actual_screenshot> [--threshold 10] [--diff-out PATH]
 ```
 
 **JSON 검증:**

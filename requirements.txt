@@ -1,0 +1,7 @@
+# QA 자동화 - 시나리오 문서 추출 및 테스트
+playwright>=1.40.0
+python-pptx>=0.6.21
+python-docx>=1.0.0
+PyMuPDF>=1.23.0
+Pillow>=10.0.0
+imagehash>=4.3.0

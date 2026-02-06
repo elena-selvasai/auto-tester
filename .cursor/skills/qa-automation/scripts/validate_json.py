@@ -39,8 +39,8 @@ def validate_test_plan(json_path):
         warnings.append("test_cases가 비어있습니다")
     else:
         # 테스트 케이스 검증
-        valid_actions = ['navigate', 'click', 'input', 'check', 'wait', 'screenshot', 'hover', 'check_attribute']
-        
+        valid_actions = ['navigate', 'click', 'input', 'check', 'wait', 'screenshot', 'hover', 'check_attribute', 'compare_with_reference']
+
         for i, tc in enumerate(data['test_cases']):
             tc_id = tc.get('tc_id', f'index_{i}')
             
@@ -66,7 +66,12 @@ def validate_test_plan(json_path):
                         warnings.append(f"{tc_id}.actions[{j}]: click 액션에 selector 권장")
                     if action_type == 'input' and ('selector' not in action or 'value' not in action):
                         errors.append(f"{tc_id}.actions[{j}]: input 액션에 selector, value 필요")
-    
+                    if action_type == 'compare_with_reference':
+                        if 'reference' not in action and 'reference_path' not in action:
+                            warnings.append(f"{tc_id}.actions[{j}]: compare_with_reference에 reference 또는 reference_path 권장")
+                        if 'screenshot' not in action and 'actual_path' not in action:
+                            warnings.append(f"{tc_id}.actions[{j}]: compare_with_reference 시 스크린샷 경로 또는 촬영 후 경로 필요")
+
     # 결과 출력
     print(f"=== {os.path.basename(json_path)} 검증 결과 ===\n")
     
