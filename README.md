@@ -1,6 +1,8 @@
 # AI QA Automation
 
-시나리오 문서(PPTX, DOCX, PDF, 이미지)를 분석하여 자동으로 테스트 시나리오를 생성하고, 참조 이미지 추출·화면 비교·구성 체크와 Playwright 웹 테스트를 수행하는 **Cursor 서브에이전트 및 Skill 기반** QA 자동화 도구입니다.
+시나리오 문서(PPTX, DOCX, PDF, 이미지)를 분석하여 자동으로 테스트 시나리오를 생성하고, 참조 이미지 추출·화면 비교·구성 체크와 Playwright 웹 테스트를 수행하는 **AI 기반** QA 자동화 도구입니다.
+
+**지원 AI 도구**: Cursor (Antigravity), Claude Code
 
 ## 주요 기능
 
@@ -13,33 +15,52 @@
 - **리포트 생성**: 테스트 결과를 Markdown 형식으로 출력
 - **스크린샷 캡처**: 테스트 단계별 스크린샷 자동 저장
 
-## 프로젝트 구조
+## 다중 AI 도구 지원
+
+이 프로젝트는 여러 AI 코딩 도구에서 동일하게 사용할 수 있도록 설계되었습니다.
+
+| AI 도구 | 폴더 | 사용 방법 | 상태 |
+|---------|------|-----------|------|
+| **Cursor** (Antigravity) | `.cursor/` | `@qa-master`, "QA 자동화 시작" | ✅ 지원 |
+| **Claude Code** | `.claude/` | Skill 자동 적용, `@qa-master` | ✅ 지원 |
+
+### 폴더 구조
+
+각 AI 도구는 자신의 폴더에서 독립적으로 설정을 읽습니다:
 
 ```
 auto-tester/
-├── .cursor/
-│   ├── agents/              # Cursor 서브에이전트 정의
+├── .cursor/                 # Cursor/Antigravity용 설정
+│   ├── agents/              # 서브에이전트 정의
 │   │   ├── qa-master.md     # 워크플로우 총괄
-│   │   ├── doc-analyst.md   # PPTX 문서 분석
-│   │   ├── test-architect.md # 테스트 케이스 설계
+│   │   ├── doc-analyst.md   # 문서 분석
+│   │   ├── test-architect.md # 테스트 설계
 │   │   └── qa-executor.md   # 테스트 실행
-│   └── skills/              # Cursor Skill 정의
+│   └── skills/              # Skill 정의
 │       └── qa-automation/   # QA 자동화 통합 Skill
 │           ├── SKILL.md
-│           └── scripts/
-│               ├── extract_document.py  # 통합 진입점 (PPTX/DOCX/PDF/이미지)
+│           └── scripts/     # 공통 Python 스크립트
+│               ├── extract_document.py  # 통합 진입점
 │               ├── extract_pptx.py
 │               ├── extract_docx.py
 │               ├── extract_pdf.py
 │               ├── extract_images.py
 │               ├── compare_screenshot.py
 │               └── validate_json.py
+├── .claude/                 # Claude Code용 설정
+│   ├── CLAUDE.md            # 프로젝트 지침
+│   ├── agents/              # 서브에이전트 정의 (Cursor와 동일 구조)
+│   └── skills/              # Skill 정의 (Cursor와 동일 구조)
 ├── inputs/                  # 입력 파일 (PPTX, DOCX, PDF, 이미지)
 ├── outputs/                 # 출력 결과물
-├── scripts/
-│   └── run_test.py          # Playwright 테스트 스크립트
 └── README.md
 ```
+
+**공유 리소스:**
+- Python 스크립트(`.cursor/skills/qa-automation/scripts/`)는 모든 AI 도구가 공유
+- Claude Code는 상대 경로(`../../.cursor/...`)로 스크립트 참조
+
+**상세 가이드:** [COMPATIBILITY.md](COMPATIBILITY.md) 참조
 
 ## 사전 준비
 
@@ -66,8 +87,9 @@ playwright install chromium
 
 ### Step 1: QA 자동화 시작
 
-Cursor 채팅창에 다음과 같이 입력합니다:
+사용 중인 AI 도구의 채팅창에 다음과 같이 입력합니다:
 
+**Cursor 또는 Claude Code:**
 ```
 QA 자동화 시작해줘
 ```
@@ -243,9 +265,17 @@ python .cursor/skills/qa-automation/scripts/validate_json.py outputs/test_plan.j
 
 ## 기술 스택
 
-- **Cursor Skills & Subagents** - AI 기반 워크플로우 자동화
+- **AI Skills & Agents** - Cursor, Claude Code 지원
 - **Playwright** - 웹 브라우저 자동화
 - **python-pptx** - PPTX 파싱 및 이미지 추출
 - **python-docx** - DOCX 파싱
 - **PyMuPDF** - PDF 파싱 및 페이지 렌더
 - **Pillow, imagehash** - 화면 비교(참조 vs 스크린샷)
+
+---
+
+## 추가 문서
+
+- [호환성 가이드](COMPATIBILITY.md) - 각 AI 도구별 상세 사용 방법
+- [Claude Code 프로젝트 지침](.claude/CLAUDE.md) - Claude Code 사용자용 가이드
+- [Cursor Skills 문서](.cursor/skills/qa-automation/SKILL.md) - Cursor 사용자용 가이드
