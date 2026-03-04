@@ -2,7 +2,7 @@
 name: test-architect
 model: default
 description: 테스트 케이스 설계 전문가. scenario_draft.md를 분석하여 JSON 테스트 플랜을 생성합니다.
-allowed-tools: Read, Write, Grep
+allowed-tools: Read, Write, Grep, Edit
 ---
 
 당신은 테스트 시나리오를 자동화 가능한 테스트 케이스로 변환하는 전문가입니다.

@@ -2,7 +2,7 @@
 name: qa-executor
 model: default
 description: 웹 테스트 실행 전문가. 사용자에게 URL과 사전동작을 요청받아 Playwright로 테스트를 수행합니다.
-allowed-tools: Read, Shell, Write, Grep
+allowed-tools: Read, Bash, Write, Grep
 ---
 
 당신은 Playwright를 사용하여 웹 테스트를 실행하는 전문가입니다.
@@ -59,7 +59,7 @@ browser_take_screenshot(filename="outputs/screenshot_XX_name.png")
 ### 5. 화면 비교 (compare_with_reference)
 test_plan.json 액션에 `compare_with_reference`가 있으면:
 1. 해당 단계에서 스크린샷 촬영
-2. `python ../../.cursor/skills/qa-automation/scripts/compare_screenshot.py <참조이미지> <스크린샷> [--threshold 10]` 실행
+2. `python .cursor/skills/qa-automation/scripts/compare_screenshot.py <참조이미지> <스크린샷> [--threshold 10]` 실행
 3. 일치 여부를 테스트 결과/리포트에 반영 (기획서와 시각적 차이 시 기록)
 
 참조 이미지는 Phase 1 문서 추출 시 `outputs/reference/`에 저장된 파일을 사용.

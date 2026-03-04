@@ -18,11 +18,12 @@ description: 시나리오 문서(PPTX/DOCX/PDF/이미지)를 분석하여 테스
    - 이슈 등록할 GitHub 리포지토리 (`owner/repo` 형식)
 4. 전체 워크플로우 실행
 5. 이슈 발견 시 지정된 리포지토리에 GitHub Issues 자동 생성
+6. 중간 산출물·예상 템플릿·디버그 파일 정리
 
 ## 워크플로우
 
 ```
-Phase 0: 사전 검증 → Phase 1: 문서 분석 → Phase 2: 테스트 설계 → Phase 3: 테스트 실행 → Phase 4: 리포트 생성 → Phase 5: 이슈 등록
+Phase 0: 사전 검증 → Phase 1: 문서 분석 → Phase 2: 테스트 설계 → Phase 3: 테스트 실행 → Phase 4: 리포트 생성 → Phase 5: 이슈 등록 → Phase 5.5: 실패 수정 → Phase 6: 정리
 ```
 
 ### Phase 0: 사전 검증
@@ -269,14 +270,26 @@ gh issue create -R {owner/repo} --title "[QA] {이슈ID}: {제목}" --body-file 
 
 ## 출력 파일 체크리스트
 
-테스트 완료 후 `outputs/` 폴더:
+Phase 6 정리 완료 후 `outputs/` 폴더에 남아야 할 최종 산출물:
+- [ ] extract_result.json - 문서 추출 결과
+- [ ] scenario_draft_source.md - 추출 요약 + 구성 체크 리스트
 - [ ] scenario_draft.md - 테스트 시나리오
 - [ ] test_plan.json - JSON 테스트 플랜 (5개 카테고리 포함)
 - [ ] test_result.json - 실행 결과 (카테고리별 요약 포함)
 - [ ] REPORT.md - 최종 리포트
-- [ ] screenshot_01~06_*.png - 기본 기능 스크린샷 (최소 6개)
-- [ ] screenshot_tc009~*.png - 추가 테스트 스크린샷
+- [ ] issue_body.md - GitHub 등록 이슈 본문
 - [ ] issues_created.json - 생성된 GitHub 이슈 목록 (이슈 발견 시)
+- [ ] fix_log.json - 자동 수정 이력 (실패 건 수정 시)
+- [ ] reference/ - 기획서 참조 이미지
+- [ ] screenshot_*.png - 테스트 스크린샷 (debug_ 제외)
+
+**삭제 확인 (Phase 6 정리 대상이 남아있지 않은지):**
+- [ ] `issue_ISS_*` 파일 없음
+- [ ] `REPORT_EXECUTED.md` 없음
+- [ ] `SUMMARY.md`, `TEST_EXECUTION_SUMMARY.md` 없음
+- [ ] `test_result_executed.json` 없음
+- [ ] `debug_*.png` 없음
+- [ ] 루트의 `explore_page.py`, `run_test_tc001.py`, `run_tests.py` 없음
 
 **테스트 케이스 기준:**
 
@@ -317,6 +330,86 @@ python .cursor/skills/qa-automation/scripts/compare_screenshot.py <reference_ima
 ```bash
 python .cursor/skills/qa-automation/scripts/validate_json.py outputs/test_plan.json
 ```
+
+## Phase 5.5: 실패 테스트 자동 수정 (auto-fixer)
+
+이슈 등록 후 실패한 테스트의 원인을 분석하고 자동 수정을 시도합니다.
+
+**전제 조건:**
+- `outputs/test_result.json`에 `status: "failed"` 항목 존재
+- `outputs/issues_created.json`에 등록된 이슈 존재
+- 사용자가 자동 수정 실행에 동의
+
+**수행 단계:**
+1. 실패 테스트 수집 및 GitHub 이슈 매핑
+2. 테스트 URL로 브라우저 접속, `browser_snapshot`으로 실제 DOM 구조 확인
+3. 실패 원인 분류:
+   - **테스트 수정 가능**: 선택자 불일치(`selector_mismatch`), 텍스트/날짜 형식(`text_mismatch`, `date_format`), 타이밍(`timing_issue`), 스크롤 대상(`scroll_target`)
+   - **앱 버그**(`app_bug`): 기능 미구현, 동작 오류 → 수정하지 않음
+4. 수정 제안서를 사용자에게 제시 (before/after diff)
+5. **사용자 승인 후** 수정 적용 (`run_all_tests.py`, `test_plan.json`)
+6. 수정된 테스트만 재실행
+7. 결과 업데이트 (`test_result.json`, `REPORT.md`)
+8. GitHub 이슈 처리 (수정 완료 시 코멘트/닫기, 사용자 승인)
+
+**출력:**
+- `outputs/test_result.json` 업데이트 (수정된 테스트 `"fixed"` 상태)
+- `outputs/fix_log.json` 수정 이력 기록
+- `outputs/REPORT.md` 갱신 ("자동 수정 결과" 섹션 추가)
+
+**주의:** 모든 수정은 사용자 승인 후에만 적용됩니다. 앱 버그로 판단되는 항목은 수정하지 않습니다.
+
+## Phase 6: 정리 (Cleanup)
+
+테스트 실행 및 GitHub 이슈 등록 완료 후, 중간 산출물·예상 템플릿·디버그 파일을 삭제하여 `outputs/` 폴더를 최종 결과물만 남긴다.
+
+**삭제 대상:**
+
+| 구분 | 파일/패턴 | 이유 |
+|------|-----------|------|
+| 예상 이슈 템플릿 | `outputs/issue_ISS_*` | 실행 전 예상으로 작성한 파일, 실제 이슈는 `issue_body.md`로 등록됨 |
+| 중간 리포트 | `outputs/REPORT_EXECUTED.md` | 최종 `REPORT.md`로 통합됨 |
+| 중간 요약 | `outputs/SUMMARY.md`, `outputs/TEST_EXECUTION_SUMMARY.md` | 최종 `REPORT.md`로 통합됨 |
+| 중간 결과 | `outputs/test_result_executed.json` | 최종 `test_result.json`으로 통합됨 |
+| 디버그 스크린샷 | `outputs/debug_*.png` | 선택자 탐색용 임시 파일 |
+| 탐색/디버그 스크립트 | `explore_page.py`, `run_test_tc001.py`, `run_tests.py` | `run_all_tests.py`로 통합됨 |
+
+**보존 대상 (최종 산출물):**
+
+```
+outputs/
+├── extract_result.json          # Phase 1 문서 추출 결과
+├── scenario_draft_source.md     # Phase 1 추출 요약 + 구성 체크 리스트
+├── scenario_draft.md            # Phase 2 테스트 시나리오
+├── test_plan.json               # Phase 2 테스트 플랜
+├── test_result.json             # Phase 3 최종 실행 결과
+├── REPORT.md                    # Phase 4 최종 리포트
+├── issue_body.md                # Phase 5 GitHub 등록 이슈 본문
+├── issues_created.json          # Phase 5 생성된 이슈 URL 목록
+├── fix_log.json                 # Phase 5.5 자동 수정 이력 (수정 시)
+├── reference/                   # Phase 1 기획서 참조 이미지
+│   └── slide_*_img_*.png
+└── screenshot_*.png             # Phase 3 테스트 스크린샷 (debug_ 제외)
+```
+
+**정리 명령:**
+```bash
+# outputs/ 내 불필요 파일 삭제
+rm -f outputs/issue_ISS_*
+rm -f outputs/REPORT_EXECUTED.md
+rm -f outputs/SUMMARY.md
+rm -f outputs/TEST_EXECUTION_SUMMARY.md
+rm -f outputs/test_result_executed.json
+rm -f outputs/debug_*.png
+
+# 프로젝트 루트 임시 스크립트 삭제
+rm -f explore_page.py run_test_tc001.py run_tests.py
+```
+
+**주의:**
+- `issue_body.md`는 삭제하지 않는다 (GitHub에 실제 등록된 이슈 원본).
+- `run_all_tests.py`는 보존한다 (재실행 가능한 최종 테스트 러너).
+- 이전 테스트 결과 폴더(`outputs_/`, `outputs__/` 등)가 있으면 함께 삭제를 제안한다.
 
 ## 에러 대응
 

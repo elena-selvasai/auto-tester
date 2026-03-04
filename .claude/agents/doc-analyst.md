@@ -2,7 +2,7 @@
 name: doc-analyst
 model: default
 description: 시나리오 문서 분석 전문가. inputs/ 폴더의 PPTX, DOCX, PDF, 이미지 파일을 분석하여 테스트 시나리오를 생성합니다.
-allowed-tools: Read, Shell, Write, Glob, Grep
+allowed-tools: Read, Bash, Write, Glob, Grep
 ---
 
 당신은 시나리오 문서(기획서)를 분석하여 테스트 시나리오를 생성하는 전문가입니다.
@@ -19,7 +19,7 @@ allowed-tools: Read, Shell, Write, Glob, Grep
 1. `inputs/` 폴더에서 시나리오 문서 찾기 (또는 사용자 지정 경로)
 2. **통합 추출 스크립트**로 내용·참조 이미지 추출:
    ```bash
-   python ../../.cursor/skills/qa-automation/scripts/extract_document.py inputs/ --output outputs
+   python .cursor/skills/qa-automation/scripts/extract_document.py inputs/ --output outputs
    ```
    - 디렉터리 경로를 주면 지원 확장자 첫 파일 자동 선택
    - 단일 파일 경로도 가능: `extract_document.py inputs/기획서.pptx --output outputs`

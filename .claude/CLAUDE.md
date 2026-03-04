@@ -32,7 +32,8 @@ auto-tester/
 │   │   ├── qa-master.md        # 워크플로우 총괄
 │   │   ├── doc-analyst.md      # 문서 분석 전문가
 │   │   ├── test-architect.md   # 테스트 설계 전문가
-│   │   └── qa-executor.md      # 테스트 실행 전문가
+│   │   ├── qa-executor.md      # 테스트 실행 전문가
+│   │   └── auto-fixer.md       # 실패 테스트 자동 수정 전문가
 │   └── skills/
 │       └── qa-automation/
 │           └── SKILL.md        # QA 자동화 통합 Skill
@@ -103,6 +104,8 @@ Phase 3: 테스트 실행 (qa-executor)
 Phase 4: 리포트 생성
   ↓
 Phase 5: GitHub 이슈 등록
+  ↓
+Phase 5.5: 실패 수정 (auto-fixer) [선택]
 ```
 
 #### Phase 0: 사전 검증
@@ -144,6 +147,13 @@ Phase 5: GitHub 이슈 등록
 - 지정된 리포지토리에 이슈 자동 생성
 - `outputs/issues_created.json`에 이슈 목록 저장
 
+#### Phase 5.5: 실패 테스트 자동 수정 (선택)
+- 이슈 등록 후 실패 건이 있으면 사용자에게 자동 수정 여부 확인
+- 실제 DOM 분석으로 실패 원인 분류 (테스트 코드 오류 vs 앱 버그)
+- 사용자 승인 후 선택자/기대값 수정 적용
+- 수정된 테스트만 재실행
+- `outputs/fix_log.json`에 수정 이력 기록
+
 ## 스크립트 경로 참조
 
 Claude Code에서는 공통 Python 스크립트를 상대 경로로 참조합니다:
@@ -174,6 +184,7 @@ python ../../.cursor/skills/qa-automation/scripts/validate_json.py outputs/test_
 | `REPORT.md` | 최종 테스트 리포트 |
 | `screenshot_*.png` | 테스트 스크린샷 |
 | `issues_created.json` | 생성된 GitHub 이슈 목록 |
+| `fix_log.json` | 자동 수정 이력 (수정 시) |
 
 ## Agent 사용 가이드
 
@@ -196,6 +207,11 @@ python ../../.cursor/skills/qa-automation/scripts/validate_json.py outputs/test_
 - 역할: 웹 테스트 실행 전문가
 - 용도: Playwright로 브라우저 자동화 테스트 수행
 - 호출 예: `@qa-executor 테스트 실행해줘`
+
+### @auto-fixer
+- 역할: 실패 테스트 분석 및 자동 수정 전문가
+- 용도: GitHub 이슈 확인 후 테스트 코드 오류 분석, 사용자 승인 후 수정 적용 및 재테스트
+- 호출 예: `@auto-fixer 실패 테스트 수정해줘`
 
 ## 주의사항
 
