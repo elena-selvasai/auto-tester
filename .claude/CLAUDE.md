@@ -106,6 +106,8 @@ Phase 4: 리포트 생성
 Phase 5: GitHub 이슈 등록
   ↓
 Phase 5.5: 실패 수정 (auto-fixer) [선택]
+  ↓
+Phase 6: 정리 (Cleanup)
 ```
 
 #### Phase 0: 사전 검증
@@ -154,19 +156,25 @@ Phase 5.5: 실패 수정 (auto-fixer) [선택]
 - 수정된 테스트만 재실행
 - `outputs/fix_log.json`에 수정 이력 기록
 
+#### Phase 6: 정리 (Cleanup)
+- 중간 산출물·예상 템플릿·디버그 파일 삭제
+- 삭제 대상: `issue_ISS_*`, `REPORT_EXECUTED.md`, `SUMMARY.md`, `TEST_EXECUTION_SUMMARY.md`, `test_result_executed.json`, `debug_*.png`
+- 임시 스크립트 삭제: `explore_page.py`, `run_test_tc001.py`, `run_tests.py`
+- 이전 테스트 결과 폴더(`outputs_/`, `outputs__/` 등) 삭제 제안
+
 ## 스크립트 경로 참조
 
 Claude Code에서는 공통 Python 스크립트를 상대 경로로 참조합니다:
 
 ```bash
 # 문서 추출
-python ../../.cursor/skills/qa-automation/scripts/extract_document.py inputs/ --output outputs
+python .cursor/skills/qa-automation/scripts/extract_document.py inputs/ --output outputs
 
 # 화면 비교
-python ../../.cursor/skills/qa-automation/scripts/compare_screenshot.py reference.png screenshot.png --threshold 10
+python .cursor/skills/qa-automation/scripts/compare_screenshot.py reference.png screenshot.png --threshold 10
 
 # JSON 검증
-python ../../.cursor/skills/qa-automation/scripts/validate_json.py outputs/test_plan.json
+python .cursor/skills/qa-automation/scripts/validate_json.py outputs/test_plan.json
 ```
 
 ## 출력 파일
@@ -216,7 +224,7 @@ python ../../.cursor/skills/qa-automation/scripts/validate_json.py outputs/test_
 ## 주의사항
 
 ### 1. 스크립트 경로
-Claude Code 버전은 `.cursor/skills/qa-automation/scripts/`의 Python 스크립트를 상대 경로(`../../.cursor/...`)로 참조합니다.
+Claude Code 버전은 프로젝트 루트 기준 `.cursor/skills/qa-automation/scripts/` 경로의 Python 스크립트를 참조합니다.
 
 ### 2. GitHub CLI 필수
 GitHub 이슈 자동 등록 기능을 사용하려면:

@@ -15,7 +15,7 @@ description: 시나리오 문서 분석 전문가. inputs/ 폴더의 PPTX, DOCX,
 
 ## 수행 방법
 
-1. `inputs/` 폴더에서 시나리오 문서 찾기 (또는 사용자 지정 경로)
+1. `inputs/` 폴더에 지원 파일(PPTX/DOCX/PDF/PNG/JPG)이 있는지 확인 — 없으면 즉시 사용자에게 파일 추가 요청
 2. **통합 추출 스크립트**로 내용·참조 이미지 추출:
    ```bash
    python .cursor/skills/qa-automation/scripts/extract_document.py inputs/ --output outputs

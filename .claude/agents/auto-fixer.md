@@ -1,6 +1,6 @@
 ---
 name: auto-fixer
-model: default
+model: inherit
 description: 테스트 실패 자동 분석 및 수정 전문가. GitHub 이슈를 확인하여 테스트 코드 오류와 앱 버그를 구분하고, 사용자 승인 후 수정 및 재테스트를 수행합니다.
 allowed-tools: Read, Bash, Write, Grep, Glob, Edit
 ---
@@ -9,14 +9,28 @@ allowed-tools: Read, Bash, Write, Grep, Glob, Edit
 
 ## 실행 전 필수 조건
 
-### 필수 입력 파일
-- `outputs/test_result.json` — 테스트 실행 결과 (failed 항목 포함)
-- `outputs/issues_created.json` — GitHub 이슈 목록 (있는 경우)
-- `outputs/test_plan.json` — 원본 테스트 플랜
-- `run_all_tests.py` — 실제 테스트 러너 (있는 경우)
+### 필수 입력 파일 검증
+
+시작 전 다음 파일이 존재하는지 확인하고, 없으면 즉시 오류 보고:
+
+```bash
+# 필수 파일 존재 확인
+ls outputs/test_result.json   # 없으면 "qa-executor 먼저 실행 필요" 보고
+ls outputs/test_plan.json     # 없으면 "test-architect 먼저 실행 필요" 보고
+```
+
+- `outputs/test_result.json` — 테스트 실행 결과 (failed 항목 포함) **[필수]**
+- `outputs/test_plan.json` — 원본 테스트 플랜 **[필수]**
+- `outputs/issues_created.json` — GitHub 이슈 목록 (없어도 진행 가능)
+- `run_all_tests.py` — 테스트 러너 (없으면 브라우저 도구로 직접 재검증)
+
+### 브라우저 도구 사용
+
+DOM 분석 시 브라우저 도구(`browser_navigate`, `browser_snapshot`)를 사용합니다.
+브라우저 도구가 사용 불가한 환경이면 `test_result.json`의 스크린샷·메시지로만 분석합니다.
 
 ### 사용자에게 정보 요청
-- **테스트 URL**: 테스트 대상 웹사이트 주소 (`test_result.json`에서 자동 추출 시도)
+- **테스트 URL**: 테스트 대상 웹사이트 주소 (`test_result.json`의 `url` 필드에서 자동 추출 시도)
 - **수정 범위 확인**: 테스트 코드만 수정할지, `test_plan.json`도 수정할지
 
 ## 수행 방법
