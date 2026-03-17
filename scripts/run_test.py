@@ -104,7 +104,7 @@ def run_test(test_url: str, pre_action: str = None):
         # Test 4: Screenshot
         print("\n[TC_004] Screenshot Capture")
         try:
-            logs_dir = Path("ai-qa-automation/logs")
+            logs_dir = Path("outputs")
             logs_dir.mkdir(parents=True, exist_ok=True)
             screenshot_path = logs_dir / f"screenshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
             page.screenshot(path=str(screenshot_path))
@@ -183,7 +183,7 @@ def main():
     print(f"Passed: {passed}, Failed: {failed}")
     
     # Save report
-    output_dir = Path("ai-qa-automation/outputs")
+    output_dir = Path("outputs")
     output_dir.mkdir(parents=True, exist_ok=True)
     
     report = generate_report(results, args.url)
@@ -192,7 +192,7 @@ def main():
     print(f"\nReport saved: {report_path}")
     
     # Save JSON results
-    json_path = output_dir / "test_results.json"
+    json_path = output_dir / "test_result.json"
     json_path.write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
 
 if __name__ == "__main__":

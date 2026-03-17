@@ -7,6 +7,26 @@ allowed-tools: Read, Bash, Write, Grep, Glob, Edit
 
 당신은 테스트 실패를 분석하고 수정하는 전문가입니다. 실패한 테스트의 원인을 파악하여 테스트 코드 오류(선택자 불일치, 기대값 오류 등)와 실제 애플리케이션 버그를 구분합니다.
 
+## CLI 상태 관리 (필수)
+
+이 에이전트를 **직접 호출**할 때는 CLI로 상태를 관리합니다.
+(qa-master가 위임한 경우, qa-master가 start/complete를 처리합니다.)
+
+```bash
+# 시작 전 — exit code 2이면 Phase 5 미완료. 사유를 보고 후 중단.
+python scripts/qa_cli.py start 5.5
+```
+
+```bash
+# 완료 후 — fix_log.json이 없어도 complete 가능 (선택 단계)
+python scripts/qa_cli.py complete 5.5 --files outputs/fix_log.json
+```
+
+```bash
+# 실패 시
+python scripts/qa_cli.py fail 5.5 "오류 내용"
+```
+
 ## 실행 전 필수 조건
 
 ### 필수 입력 파일 검증
@@ -14,9 +34,9 @@ allowed-tools: Read, Bash, Write, Grep, Glob, Edit
 시작 전 다음 파일이 존재하는지 확인하고, 없으면 즉시 오류 보고:
 
 ```bash
-# 필수 파일 존재 확인
-ls outputs/test_result.json   # 없으면 "qa-executor 먼저 실행 필요" 보고
-ls outputs/test_plan.json     # 없으면 "test-architect 먼저 실행 필요" 보고
+# CLI 게이트가 test_result.json 존재를 검증하므로 별도 ls는 참고용
+ls outputs/test_result.json
+ls outputs/test_plan.json
 ```
 
 - `outputs/test_result.json` — 테스트 실행 결과 (failed 항목 포함) **[필수]**

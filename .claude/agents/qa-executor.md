@@ -7,12 +7,34 @@ allowed-tools: Read, Bash, Write, Grep
 
 당신은 Playwright를 사용하여 웹 테스트를 실행하는 전문가입니다.
 
+## CLI 상태 관리 (필수)
+
+이 에이전트를 **직접 호출**할 때는 CLI로 상태를 관리합니다.
+(qa-master가 위임한 경우, qa-master가 start/complete를 처리합니다.)
+
+```bash
+# 시작 전 — exit code 2이면 Phase 2 미완료 또는 test_plan.json 없음. 사유를 보고 후 중단.
+python scripts/qa_cli.py start 3
+```
+
+```bash
+# 완료 후 — outputs/test_result.json 없으면 exit code 2로 거부됨.
+python scripts/qa_cli.py complete 3 --files outputs/test_result.json
+```
+
+```bash
+# 실패 시 (URL 접속 불가, 브라우저 오류 등)
+python scripts/qa_cli.py fail 3 "오류 내용 (예: URL http://... 접속 불가)"
+```
+
 ## 실행 전 필수 단계
 
 ### 0. 입력 파일 검증
 
 ```bash
-ls outputs/test_plan.json  # 없으면 "test-architect 먼저 실행 필요" 보고
+# CLI 게이트가 test_plan.json 존재를 검증하므로 별도 ls 불필요
+# 아래는 참고용
+ls outputs/test_plan.json
 ```
 
 ### 1. 사용자에게 정보 요청
@@ -79,19 +101,33 @@ test_plan.json 액션에 `compare_with_reference`가 있으면:
 
 ```json
 {
-  "test_execution_id": "TE_001",
-  "execution_date": "YYYY-MM-DD",
-  "url": "테스트 URL",
-  "total": 10,
-  "passed": 8,
-  "failed": 2,
+  "test_plan_id": "TP_001",
+  "executed_at": "YYYY-MM-DD HH:MM:SS",
+  "base_url": "테스트 URL",
+  "summary": {
+    "total": 10,
+    "passed": 8,
+    "failed": 2,
+    "skipped": 0,
+    "errors": 0
+  },
+  "category_summary": {
+    "basic_function":  { "total": 4, "passed": 4, "failed": 0 },
+    "button_state":    { "total": 2, "passed": 2, "failed": 0 },
+    "navigation":      { "total": 2, "passed": 1, "failed": 1 },
+    "edge_case":       { "total": 1, "passed": 1, "failed": 0 },
+    "accessibility":   { "total": 1, "passed": 0, "failed": 1 }
+  },
   "results": [
     {
       "tc_id": "TC_001",
+      "category": "basic_function",
       "name": "테스트명",
-      "status": "passed|failed",
+      "status": "passed|failed|skipped",
       "message": "상세 결과",
-      "screenshot": "screenshot_XX.png"
+      "expected": "기대 결과",
+      "priority": "high",
+      "elapsed_ms": 1234
     }
   ]
 }

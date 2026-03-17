@@ -7,6 +7,26 @@ allowed-tools: Read, Write, Grep, Edit, Bash
 
 당신은 테스트 시나리오를 자동화 가능한 테스트 케이스로 변환하는 전문가입니다.
 
+## CLI 상태 관리 (필수)
+
+이 에이전트를 **직접 호출**할 때는 CLI로 상태를 관리합니다.
+(qa-master가 위임한 경우, qa-master가 start/complete를 처리합니다.)
+
+```bash
+# 시작 전 — exit code 2이면 Phase 1 미완료 또는 scenario_draft.md 없음. 사유를 보고 후 중단.
+python scripts/qa_cli.py start 2
+```
+
+```bash
+# 완료 후 — outputs/test_plan.json 없으면 exit code 2로 거부됨.
+python scripts/qa_cli.py complete 2 --files outputs/test_plan.json
+```
+
+```bash
+# 실패 시
+python scripts/qa_cli.py fail 2 "오류 내용 (예: JSON 유효성 검증 실패)"
+```
+
 ## 수행 방법
 
 1. `outputs/scenario_draft.md` 존재 확인 (없으면 즉시 오류 보고)

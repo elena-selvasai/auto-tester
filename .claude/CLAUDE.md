@@ -1,57 +1,59 @@
 # AI QA Automation - Claude Code 프로젝트 지침
 
-이 프로젝트는 시나리오 문서(PPTX, DOCX, PDF, 이미지)를 분석하여 자동으로 테스트 시나리오를 생성하고, 참조 이미지 추출·화면 비교·구성 체크와 Playwright 웹 테스트를 수행하는 QA 자동화 도구입니다.
+이 프로젝트는 시나리오 문서(PPTX/DOCX/PDF/이미지)를 분석하여 Playwright 웹 자동화 테스트를 수행하는 AI 기반 QA 자동화 도구입니다.
 
-## 프로젝트 개요
+> **상세 사양**: [SPEC.md](../SPEC.md) | **전체 가이드**: [README.md](../README.md)
 
-### 주요 기능
-- 문서 분석: PPTX/DOCX/PDF/이미지에서 텍스트, 표, 노트, 삽입 이미지 자동 추출
-- 참조 이미지 저장: 기획서 슬라이드/페이지별 이미지를 저장하여 화면 비교에 활용
-- 화면 비교: 참조 이미지와 실제 스크린샷 유사도 비교
-- 구성 체크: 기획서 기준 예상 표시 요소 확인
-- AI 시나리오 생성: AI를 활용한 테스트 시나리오 자동 작성
-- 웹 자동화 테스트: Playwright 기반의 브라우저 자동화 테스트
-- 리포트 생성: 테스트 결과를 Markdown 형식으로 출력
-- GitHub 이슈 등록: 테스트 실패 시 자동으로 이슈 생성
+## 주요 기능
 
-### 기술 스택
+- **문서 분석**: PPTX/DOCX/PDF/이미지에서 텍스트, 표, 노트, 삽입 이미지 자동 추출
+- **참조 이미지 저장**: 기획서 슬라이드/페이지별 이미지를 `outputs/reference/`에 저장 → 화면 비교·구성 체크에 활용
+- **화면 비교**: 참조 이미지와 실제 스크린샷 유사도 비교
+- **구성 체크**: 기획서 기준 예상 표시 요소 확인
+- **AI 시나리오 생성**: AI를 활용한 테스트 시나리오 자동 작성
+- **웹 자동화 테스트**: Playwright 기반의 브라우저 자동화 테스트
+- **리포트 생성**: 테스트 결과를 Markdown 형식으로 출력
+- **GitHub 이슈 등록**: 테스트 실패 시 자동으로 이슈 생성
+- **실패 자동 수정**: 이슈 분석 후 테스트 코드 오류 자동 수정 및 재테스트
+- **YAML 상태 관리**: Phase별 진행 상태를 `qa_state.yaml`에 기록, 중단 후 재개 가능
+- **CLI 검증 게이트**: 이전 Phase 미완료·필수 산출물 없으면 다음 Phase 자동 거부
+
+## 기술 스택
+
 - **Claude Code Skills & Agents**: AI 기반 워크플로우 자동화
+- **qa_cli.py**: YAML + CLI 상태 관리 (Phase 게이트, 리마인더)
 - **Playwright**: 웹 브라우저 자동화
-- **python-pptx**: PPTX 파싱 및 이미지 추출
-- **python-docx**: DOCX 파싱
-- **PyMuPDF**: PDF 파싱 및 페이지 렌더
-- **Pillow, imagehash**: 화면 비교(참조 vs 스크린샷)
+- **python-pptx / python-docx / PyMuPDF**: 문서 파싱
+- **Pillow, imagehash**: 화면 비교
+- **PyYAML**: 상태 파일 읽기/쓰기
 
 ## 폴더 구조
 
 ```
 auto-tester/
 ├── .claude/                    # Claude Code 전용 설정
-│   ├── CLAUDE.md               # 이 파일 - 프로젝트 지침
+│   ├── CLAUDE.md               # 이 파일
 │   ├── agents/                 # 서브에이전트 정의
-│   │   ├── qa-master.md        # 워크플로우 총괄
-│   │   ├── doc-analyst.md      # 문서 분석 전문가
-│   │   ├── test-architect.md   # 테스트 설계 전문가
-│   │   ├── qa-executor.md      # 테스트 실행 전문가
-│   │   └── auto-fixer.md       # 실패 테스트 자동 수정 전문가
+│   │   ├── qa-master.md
+│   │   ├── doc-analyst.md
+│   │   ├── test-architect.md
+│   │   ├── qa-executor.md
+│   │   └── auto-fixer.md
 │   └── skills/
 │       └── qa-automation/
-│           └── SKILL.md        # QA 자동화 통합 Skill
-├── .cursor/                    # Cursor/Antigravity용 설정 (원본)
-│   ├── agents/                 # 동일한 구조
-│   └── skills/
-│       └── qa-automation/
-│           ├── SKILL.md
-│           └── scripts/        # 공통 Python 스크립트
-│               ├── extract_document.py
-│               ├── extract_pptx.py
-│               ├── extract_docx.py
-│               ├── extract_pdf.py
-│               ├── extract_images.py
-│               ├── compare_screenshot.py
-│               └── validate_json.py
+│           └── SKILL.md
+├── .cursor/                    # Cursor 전용 설정 (구조 동일)
+│   └── skills/qa-automation/scripts/  # 공통 Python 스크립트
+├── scripts/
+│   ├── qa_cli.py               # YAML+CLI 상태 관리 도구
+│   ├── run_all_tests.py        # Action 기반 테스트 러너
+│   ├── generate_report.py      # REPORT.md 생성
+│   ├── create_github_issues.py # GitHub 이슈 자동 등록
+│   └── run_test.py             # 간단한 URL 테스트 러너 (레거시)
 ├── inputs/                     # 입력 파일 (PPTX, DOCX, PDF, 이미지)
 ├── outputs/                    # 출력 결과물
+│   └── qa_state.yaml           # Phase 진행 상태 DB (자동 생성)
+├── SPEC.md                     # 기술 명세 (단일 원본)
 └── README.md
 ```
 
@@ -59,114 +61,59 @@ auto-tester/
 
 ### 빠른 시작
 
-Claude Code 채팅창에서 다음과 같이 입력:
+```bash
+python scripts/qa_cli.py init
+```
 
+채팅창에서:
 ```
 QA 자동화 시작해줘
 ```
 
-또는 특정 Agent를 직접 호출:
-
-```
-@qa-master 전체 워크플로우 실행해줘
-```
-
-### 단계별 실행
-
-특정 Phase만 실행하려면 해당 Agent를 직접 호출:
-
-#### 1. 문서 분석만 실행
-```
-@doc-analyst inputs/ 폴더의 기획서 분석해줘
-```
-
-#### 2. 테스트 설계만 실행
-```
-@test-architect scenario_draft.md를 test_plan.json으로 변환해줘
-```
-
-#### 3. 테스트 실행만 실행
-```
-@qa-executor 테스트 실행해줘
-```
-
-### 워크플로우 단계
-
-```
-Phase 0: 사전 검증
-  ↓
-Phase 1: 문서 분석 (doc-analyst)
-  ↓
-Phase 2: 테스트 설계 (test-architect)
-  ↓
-Phase 3: 테스트 실행 (qa-executor)
-  ↓
-Phase 4: 리포트 생성
-  ↓
-Phase 5: GitHub 이슈 등록
-  ↓
-Phase 5.5: 실패 수정 (auto-fixer) [선택]
-  ↓
-Phase 6: 정리 (Cleanup)
-```
-
-#### Phase 0: 사전 검증
-- GitHub CLI 설치 및 로그인 확인
-- 테스트 URL 입력 요청
-- GitHub 리포지토리 정보 입력 요청 (이슈 등록용)
-
-#### Phase 1: 문서 분석
-- `inputs/` 폴더에서 시나리오 문서 확인 (PPTX/DOCX/PDF/이미지)
-- 통합 스크립트로 내용 및 참조 이미지 추출
-- `outputs/scenario_draft.md` 생성
-- `outputs/reference/` 폴더에 참조 이미지 저장
-
-#### Phase 2: 테스트 설계
-- scenario_draft.md를 읽어 JSON 테스트 플랜으로 변환
-- 5개 카테고리 테스트 케이스 생성:
-  - basic_function (기본 기능)
-  - button_state (버튼 상태)
-  - navigation (네비게이션)
-  - edge_case (엣지 케이스)
-  - accessibility (접근성)
-- `outputs/test_plan.json` 생성
-
-#### Phase 3: 테스트 실행
-- 브라우저 자동화로 테스트 수행
-- 각 단계별 스크린샷 캡처
-- 참조 이미지와 화면 비교
-- 구성 체크 리스트 검증
-- `outputs/test_result.json` 생성
-
-#### Phase 4: 리포트 생성
-- 테스트 결과 취합
-- `outputs/REPORT.md` 생성
-- 카테고리별 통계 포함
-- 스크린샷 목록 포함
-
-#### Phase 5: GitHub 이슈 등록
-- 테스트 실패 또는 불일치 발견 시
-- 지정된 리포지토리에 이슈 자동 생성
-- `outputs/issues_created.json`에 이슈 목록 저장
-
-#### Phase 5.5: 실패 테스트 자동 수정 (선택)
-- 이슈 등록 후 실패 건이 있으면 사용자에게 자동 수정 여부 확인
-- 실제 DOM 분석으로 실패 원인 분류 (테스트 코드 오류 vs 앱 버그)
-- 사용자 승인 후 선택자/기대값 수정 적용
-- 수정된 테스트만 재실행
-- `outputs/fix_log.json`에 수정 이력 기록
-
-#### Phase 6: 정리 (Cleanup)
-- 중간 산출물·예상 템플릿·디버그 파일 삭제
-- 삭제 대상: `issue_ISS_*`, `REPORT_EXECUTED.md`, `SUMMARY.md`, `TEST_EXECUTION_SUMMARY.md`, `test_result_executed.json`, `debug_*.png`
-- 임시 스크립트 삭제: `explore_page.py`, `run_test_tc001.py`, `run_tests.py`
-- 이전 테스트 결과 폴더(`outputs_/`, `outputs__/` 등) 삭제 제안
-
-## 스크립트 경로 참조
-
-Claude Code에서는 공통 Python 스크립트를 상대 경로로 참조합니다:
+### 상태 확인
 
 ```bash
+python scripts/qa_cli.py status          # 전체 Phase 현황
+python scripts/qa_cli.py next            # 다음 할 일
+python scripts/qa_cli.py resume          # 중단 지점 재개
+python scripts/qa_cli.py fail <N> "사유" # Phase 실패 기록
+```
+
+### 워크플로우
+
+모든 Phase 전환은 `scripts/qa_cli.py`를 통해서만 수행합니다.
+`start <N>` exit code 2 → 즉시 중단, 사유를 사용자에게 보고.
+
+```
+Phase 0: 사전 검증         → qa_cli.py start 0 / complete 0
+  ↓ [GATE]
+Phase 1: 문서 분석          → qa_cli.py start 1 / complete 1
+  ↓ [GATE: scenario_draft.md 필요]
+Phase 2: 테스트 설계        → qa_cli.py start 2 / complete 2
+  ↓ [GATE: test_plan.json 필요]
+Phase 3: 테스트 실행        → qa_cli.py start 3 / complete 3
+  ↓ [GATE: test_result.json 필요]
+Phase 4: 리포트 생성        → qa_cli.py start 4 / complete 4
+  ↓ [GATE: REPORT.md 필요]
+Phase 5: GitHub 이슈 등록   → qa_cli.py start 5 / complete 5
+  ↓
+Phase 5.5: 실패 수정 [선택] → qa_cli.py start 5.5 / complete 5.5
+  ↓
+Phase 6: 정리               → qa_cli.py start 6 / complete 6
+```
+
+Phase별 수행 내용은 [SPEC.md](../SPEC.md) 참조.
+
+## 스크립트 경로
+
+모든 명령은 **프로젝트 루트**에서 실행합니다.
+
+```bash
+# 상태 관리
+python scripts/qa_cli.py init
+python scripts/qa_cli.py start <N>
+python scripts/qa_cli.py complete <N> [--files file1 file2 ...]
+
 # 문서 추출
 python .cursor/skills/qa-automation/scripts/extract_document.py inputs/ --output outputs
 
@@ -179,136 +126,62 @@ python .cursor/skills/qa-automation/scripts/validate_json.py outputs/test_plan.j
 
 ## 출력 파일
 
-테스트 완료 후 `outputs/` 폴더에 생성되는 파일:
-
-| 파일 | 설명 |
-|------|------|
-| `scenario_draft.md` | 테스트 시나리오 |
-| `extract_result.json` | 문서 추출 결과 |
-| `scenario_draft_source.md` | 추출 요약 + 구성 체크 리스트 |
-| `reference/*.png` | 기획서 참조 이미지 |
-| `test_plan.json` | JSON 테스트 플랜 (5개 카테고리) |
-| `test_result.json` | 테스트 실행 결과 |
-| `REPORT.md` | 최종 테스트 리포트 |
-| `screenshot_*.png` | 테스트 스크린샷 |
-| `issues_created.json` | 생성된 GitHub 이슈 목록 |
-| `fix_log.json` | 자동 수정 이력 (수정 시) |
+| 파일 | Phase | 설명 |
+|------|-------|------|
+| `qa_state.yaml` | 전체 | Phase 진행 상태 DB |
+| `scenario_draft.md` | 1 | 테스트 시나리오 |
+| `extract_result.json` | 1 | 문서 추출 결과 |
+| `scenario_draft_source.md` | 1 | 추출 요약 + 구성 체크 |
+| `reference/*.png` | 1 | 기획서 참조 이미지 |
+| `test_plan.json` | 2 | JSON 테스트 플랜 |
+| `test_result.json` | 3 | 테스트 실행 결과 |
+| `screenshot_TC_{tc_id}_{description}.png` | 3 | 테스트 스크린샷 |
+| `REPORT.md` | 4 | 최종 리포트 |
+| `issues_created.json` | 5 | 생성된 GitHub 이슈 목록 |
+| `fix_log.json` | 5.5 | 자동 수정 이력 |
 
 ## Agent 사용 가이드
 
-### @qa-master
-- 역할: 전체 워크플로우 총괄
-- 용도: 전체 Phase를 순차적으로 실행
-- 호출 예: `@qa-master QA 자동화 시작해줘`
-
-### @doc-analyst
-- 역할: 시나리오 문서 분석 전문가
-- 용도: PPTX/DOCX/PDF/이미지 분석 및 시나리오 추출
-- 호출 예: `@doc-analyst inputs/기획서.pptx 분석해줘`
-
-### @test-architect
-- 역할: 테스트 케이스 설계 전문가
-- 용도: Markdown 시나리오를 JSON 테스트 플랜으로 변환
-- 호출 예: `@test-architect test_plan.json 생성해줘`
-
-### @qa-executor
-- 역할: 웹 테스트 실행 전문가
-- 용도: Playwright로 브라우저 자동화 테스트 수행
-- 호출 예: `@qa-executor 테스트 실행해줘`
-
-### @auto-fixer
-- 역할: 실패 테스트 분석 및 자동 수정 전문가
-- 용도: GitHub 이슈 확인 후 테스트 코드 오류 분석, 사용자 승인 후 수정 적용 및 재테스트
-- 호출 예: `@auto-fixer 실패 테스트 수정해줘`
+| Agent | 역할 | 호출 예 |
+|-------|------|---------|
+| `@qa-master` | 전체 워크플로우 총괄 | `@qa-master QA 자동화 시작해줘` |
+| `@doc-analyst` | 문서 분석 | `@doc-analyst inputs/기획서.pptx 분석해줘` |
+| `@test-architect` | 테스트 설계 | `@test-architect test_plan.json 만들어줘` |
+| `@qa-executor` | 테스트 실행 | `@qa-executor 테스트 실행해줘` |
+| `@auto-fixer` | 실패 테스트 수정 | `@auto-fixer 실패 테스트 수정해줘` |
 
 ## 주의사항
 
-### 1. 스크립트 경로
-Claude Code 버전은 프로젝트 루트 기준 `.cursor/skills/qa-automation/scripts/` 경로의 Python 스크립트를 참조합니다.
+1. **테스트 URL 형식**: 전체 URL 입력 필요 (예: `http://localhost:3000/page`)
+2. **GitHub CLI**: Phase 5 사용 시 `gh auth login` 필요
+3. **Python 의존성**:
+   ```bash
+   pip install playwright python-pptx python-docx PyMuPDF Pillow imagehash pyyaml
+   playwright install chromium
+   ```
 
-### 2. GitHub CLI 필수
-GitHub 이슈 자동 등록 기능을 사용하려면:
-- GitHub CLI 설치 필요
-- `gh auth login`으로 로그인 필요
-- 이슈 등록할 리포지토리 접근 권한 필요
+## Phase 6 정리 대상
 
-### 3. Python 의존성
-다음 패키지가 설치되어 있어야 합니다:
-```bash
-pip install playwright python-pptx python-docx PyMuPDF Pillow imagehash
-playwright install chromium
-```
+삭제 대상 (`outputs/` 내 임시 파일):
+- `issue_ISS_*`, `issue_body_TC*.md`, `REPORT_EXECUTED.md`, `SUMMARY.md`
+- `TEST_EXECUTION_SUMMARY.md`, `test_result_executed.json`, `debug_*.png`
 
-### 4. 테스트 URL
-- 전체 URL 입력 필요 (프로토콜 포함)
-- 올바른 예: `http://localhost:3000/page`
-- 잘못된 예: `localhost:3000/page`
+삭제 대상 (루트 임시 스크립트 — AI가 세션 중 생성한 것):
+- `explore_page.py`, `explore_dom*.py`, `run_test_tc*.py`, `run_tests.py`, `create_github_dir.py`, `run_commands.bat`
 
-### 5. 호환성
-- 이 `.claude/` 폴더는 Claude Code 전용입니다
-- Cursor/Antigravity 사용자는 `.cursor/` 폴더를 사용합니다
-- 두 버전 모두 동일한 Python 스크립트를 공유합니다
-
-## 코딩 스타일 가이드
-
-### Python 스크립트
-- PEP 8 스타일 가이드 준수
-- 함수/클래스에 docstring 포함
-- 타입 힌트 사용 권장
-- 에러 핸들링 철저히 수행
-
-### JSON 형식
-- 들여쓰기 2칸 사용
-- 키는 쌍따옴표 사용
-- 배열/객체 마지막 요소에 쉼표 없음
-
-### Markdown 문서
-- 명확한 제목 계층 구조
-- 코드 블록에 언어 명시
-- 표는 가독성 있게 정렬
-
-## 트러블슈팅
-
-### GitHub CLI 오류
-```bash
-# 설치 확인
-gh --version
-
-# 로그인
-gh auth login
-
-# 상태 확인
-gh auth status
-```
-
-### Python 스크립트 오류
-```bash
-# 의존성 재설치
-pip install -r requirements.txt
-
-# Playwright 브라우저 재설치
-playwright install chromium
-```
-
-### 경로 오류
-- 상대 경로가 올바른지 확인
-- 작업 디렉토리가 프로젝트 루트인지 확인
+보존 대상 (삭제 금지):
+- `scripts/run_all_tests.py`, `outputs/issue_body.md`
 
 ## 추가 리소스
 
-- [프로젝트 README](../../README.md)
-- [호환성 가이드](../../COMPATIBILITY.md)
-- [Cursor Skills 문서](../.cursor/skills/qa-automation/SKILL.md)
+- [README.md](../README.md) - 프로젝트 개요 및 전체 가이드
+- [SPEC.md](../SPEC.md) - 기술 명세 (단일 원본, Phase별 상세 가이드)
+- [COMPATIBILITY.md](../COMPATIBILITY.md) - AI 도구 호환성 가이드
+- [Cursor Skills 문서](../.cursor/skills/qa-automation/SKILL.md) - Cursor 사용자용 가이드
 
 ## 기여 가이드
 
-이 프로젝트는 Cursor와 Claude Code 모두를 지원합니다. 기능 추가 시:
-
-1. `.cursor/` 버전을 먼저 수정 (원본)
+1. `.cursor/` 버전 먼저 수정 (원본)
 2. `.claude/` 버전에 동일 변경 사항 반영
-3. 스크립트는 `.cursor/skills/qa-automation/scripts/`에서 한 번만 수정
-4. 경로 참조가 올바른지 확인
-
-## 라이선스
-
-이 프로젝트는 MIT 라이선스를 따릅니다.
+3. 공유 스크립트는 `.cursor/skills/qa-automation/scripts/`에서만 수정
+4. `scripts/qa_cli.py`는 양쪽 공유 — 한 번만 수정

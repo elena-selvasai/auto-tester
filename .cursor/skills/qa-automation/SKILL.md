@@ -1,6 +1,7 @@
 ---
 name: qa-automation
 description: 시나리오 문서(PPTX/DOCX/PDF/이미지)를 분석하여 테스트 시나리오를 생성하고, 이미지 추출·화면 비교·구성 체크와 Playwright 웹 테스트를 자동 수행. "QA 자동화", "테스트 시작", "기획서 분석", "QA 테스트" 언급 시 자동 적용.
+user-invocable: true
 ---
 
 # QA 자동화
@@ -167,22 +168,16 @@ scenario_draft.md → test_plan.json 변환:
 3. 테스트 실행 및 스크린샷 캡처
 
 **스크린샷 저장:**
-```
-# 기본 기능 테스트
-outputs/screenshot_01_initial.png     - 초기 화면
-outputs/screenshot_02_interaction.png - 주요 인터랙션
-outputs/screenshot_03_correct.png     - 정답/성공 처리
-outputs/screenshot_04_wrong.png       - 오답/에러 처리
-outputs/screenshot_05_popup.png       - 팝업/다이얼로그
-outputs/screenshot_06_result.png      - 결과 화면
 
-# 추가 테스트 (버튼 상태, 네비게이션, 엣지 케이스)
-outputs/screenshot_tc051_*.png        - 버튼 상태 검증
-outputs/screenshot_tc052_*.png        - 스크롤/페이지네이션 상태
-outputs/screenshot_tc053_*.png        - 완료 후 비활성화 상태
-outputs/screenshot_tc101_*.png        - 항목 재방문
-outputs/screenshot_tc151_*.png        - 토글 동작
-outputs/screenshot_tc152_*.png        - 오류 후 재시도
+파일명 규칙: `screenshot_TC_{tc_id}_{description}.png`
+
+```
+outputs/screenshot_TC_001_initial.png        - 초기 화면
+outputs/screenshot_TC_002_interaction.png    - 주요 인터랙션
+outputs/screenshot_TC_051_button_state.png   - 버튼 상태 검증
+outputs/screenshot_TC_101_navigation.png     - 네비게이션
+outputs/screenshot_TC_151_edge_case.png      - 엣지 케이스
+outputs/screenshot_TC_181_accessibility.png  - 접근성
 ```
 
 **화면 비교·구성 체크:**
@@ -281,7 +276,8 @@ Phase 6 정리 완료 후 `outputs/` 폴더에 남아야 할 최종 산출물:
 - [ ] issues_created.json - 생성된 GitHub 이슈 목록 (이슈 발견 시)
 - [ ] fix_log.json - 자동 수정 이력 (실패 건 수정 시)
 - [ ] reference/ - 기획서 참조 이미지
-- [ ] screenshot_*.png - 테스트 스크린샷 (debug_ 제외)
+- [ ] screenshot_TC_*.png - 테스트 스크린샷 (debug_ 제외)
+- [ ] run_all_tests.py - 최종 테스트 러너 (생성된 경우)
 
 **삭제 확인 (Phase 6 정리 대상이 남아있지 않은지):**
 - [ ] `issue_ISS_*` 파일 없음
@@ -290,6 +286,7 @@ Phase 6 정리 완료 후 `outputs/` 폴더에 남아야 할 최종 산출물:
 - [ ] `test_result_executed.json` 없음
 - [ ] `debug_*.png` 없음
 - [ ] 루트의 `explore_page.py`, `run_test_tc001.py`, `run_tests.py` 없음
+- [ ] 루트의 `explore_dom*.py`, `create_github_dir.py` 없음
 
 **테스트 케이스 기준:**
 
@@ -404,6 +401,7 @@ rm -f outputs/debug_*.png
 
 # 프로젝트 루트 임시 스크립트 삭제
 rm -f explore_page.py run_test_tc001.py run_tests.py
+rm -f explore_dom*.py create_github_dir.py
 ```
 
 **주의:**

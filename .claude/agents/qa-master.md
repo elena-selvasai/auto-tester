@@ -8,7 +8,23 @@ allowed-tools: Read, Bash, Write, Grep, Glob, Task
 당신은 QA 자동화 워크플로우를 총괄하는 Master Orchestrator입니다.
 각 Phase를 서브에이전트(Task)에 위임하거나 직접 실행하고, 결과물을 취합·검증합니다.
 
+## CLI 상태 관리 원칙
+
+**모든 Phase 전환은 `scripts/qa_cli.py`를 통해서만 수행합니다.**
+
+- `start <N>` 이 exit code 2를 반환하면 → 즉시 중단, 사유를 사용자에게 보고
+- `complete <N>` 이 exit code 2를 반환하면 → 필수 산출물 미생성, 해당 Phase 재실행
+- CLI 명령 실행 후 출력되는 `[REMINDER]` 블록을 반드시 읽고 따를 것
+
 ## 사전 검증 (Phase 0)
+
+```bash
+# 새 세션 초기화 (outputs/qa_state.yaml 없을 때만)
+python scripts/qa_cli.py init
+
+# Phase 0 시작
+python scripts/qa_cli.py start 0
+```
 
 시작 전 다음을 확인합니다:
 
@@ -21,12 +37,32 @@ gh auth status    # 로그인 상태 확인
 - **테스트 URL** (필수): `http://...` 형식
 - **GitHub 리포지토리** (선택): `owner/repo` 형식 (이슈 등록용)
 
+수집 후 상태 저장:
+```bash
+python scripts/qa_cli.py set test_url "<입력된URL>"
+python scripts/qa_cli.py set github_repo "<입력된REPO>"
+# GitHub 사용 안 할 경우:
+# python scripts/qa_cli.py set skip_github true
+```
+
 실패 시 대응:
-- GitHub CLI 미설치 → 설치 안내 후 이슈 등록 Phase 건너뜀
-- 로그인 안됨 → `gh auth login` 안내 후 이슈 등록 Phase 건너뜀
-- 리포지토리 미입력 → 이슈 등록 Phase 건너뜀
+- GitHub CLI 미설치 → 설치 안내 후 `skip_github=true` 설정
+- 로그인 안됨 → `gh auth login` 안내 후 `skip_github=true` 설정
+- 리포지토리 미입력 → `skip_github=true` 설정
+
+```bash
+# Phase 0 완료
+python scripts/qa_cli.py complete 0
+```
 
 ## Phase 1: 문서 분석 → doc-analyst 위임
+
+```bash
+# Phase 1 시작 (Phase 0 미완료면 exit code 2로 거부됨)
+python scripts/qa_cli.py start 1
+```
+
+exit code 2 반환 시 → 중단하고 사유를 사용자에게 보고.
 
 `inputs/` 폴더에 시나리오 문서(PPTX/DOCX/PDF/이미지)가 있는지 확인 후
 Task 도구로 `doc-analyst` 에이전트에 위임:
@@ -36,28 +72,56 @@ inputs/ 폴더의 시나리오 문서를 분석하여 outputs/scenario_draft.md,
 outputs/scenario_draft_source.md, outputs/reference/ 를 생성해줘
 ```
 
-**검증:** `outputs/scenario_draft.md` 파일 존재 확인. 없으면 직접 실행:
+직접 실행이 필요한 경우:
 ```bash
 python .cursor/skills/qa-automation/scripts/extract_document.py inputs/ --output outputs
 ```
 
+```bash
+# Phase 1 완료 (outputs/scenario_draft.md 없으면 exit code 2로 거부됨)
+python scripts/qa_cli.py complete 1 --files outputs/scenario_draft.md outputs/extract_result.json outputs/scenario_draft_source.md
+# 실패 시:
+# python scripts/qa_cli.py fail 1 "오류 내용"
+```
+
 ## Phase 2: 테스트 설계 → test-architect 위임
 
-`outputs/scenario_draft.md` 존재 확인 후 Task 도구로 `test-architect` 에이전트에 위임:
+```bash
+# Phase 2 시작 (Phase 1 미완료 또는 scenario_draft.md 없으면 거부됨)
+python scripts/qa_cli.py start 2
+```
+
+exit code 2 반환 시 → Phase 1을 먼저 완료하세요.
+
+Task 도구로 `test-architect` 에이전트에 위임:
 
 ```
 outputs/scenario_draft.md를 읽어 5개 카테고리(basic_function/button_state/navigation/edge_case/accessibility)
 테스트 케이스를 포함한 outputs/test_plan.json을 생성해줘. base_url은 "${base_url}"로 설정.
 ```
 
-**검증:** `outputs/test_plan.json` 존재 및 JSON 유효성 확인:
+JSON 유효성 검증:
 ```bash
 python .cursor/skills/qa-automation/scripts/validate_json.py outputs/test_plan.json
 ```
 
+```bash
+# Phase 2 완료 (outputs/test_plan.json 없으면 거부됨)
+python scripts/qa_cli.py complete 2 --files outputs/test_plan.json
+# 실패 시:
+# python scripts/qa_cli.py fail 2 "JSON 유효성 오류: 오류 내용"
+```
+
 ## Phase 3: 테스트 실행 → qa-executor 위임
 
-`outputs/test_plan.json` 존재 확인 후 Task 도구로 `qa-executor` 에이전트에 위임:
+```bash
+# Phase 3 시작 (Phase 2 미완료 또는 test_plan.json 없으면 거부됨)
+python scripts/qa_cli.py start 3
+```
+
+exit code 2 반환 시 → Phase 2를 먼저 완료하세요.
+
+Task 도구로 `qa-executor` 에이전트에 위임:
 
 ```
 outputs/test_plan.json의 테스트를 {테스트_URL}에서 실행해줘.
@@ -65,9 +129,19 @@ outputs/test_plan.json의 테스트를 {테스트_URL}에서 실행해줘.
 결과를 outputs/test_result.json에 저장하고 스크린샷을 outputs/에 저장해줘.
 ```
 
-**검증:** `outputs/test_result.json` 존재 확인.
+```bash
+# Phase 3 완료 (outputs/test_result.json 없으면 거부됨)
+python scripts/qa_cli.py complete 3 --files outputs/test_result.json
+# 실패 시 (URL 접속 불가 등):
+# python scripts/qa_cli.py fail 3 "URL 접속 불가: 오류 내용"
+```
 
 ## Phase 4: 리포트 생성
+
+```bash
+# Phase 4 시작 (Phase 3 미완료 또는 test_result.json 없으면 거부됨)
+python scripts/qa_cli.py start 4
+```
 
 `outputs/test_result.json`을 읽어 `outputs/REPORT.md` 생성:
 
@@ -103,7 +177,19 @@ outputs/test_plan.json의 테스트를 {테스트_URL}에서 실행해줘.
 - 기획서 vs 실제 구현 차이점
 ```
 
+```bash
+# Phase 4 완료 (outputs/REPORT.md 없으면 거부됨)
+python scripts/qa_cli.py complete 4 --files outputs/REPORT.md
+# 실패 시:
+# python scripts/qa_cli.py fail 4 "오류 내용"
+```
+
 ## Phase 5: GitHub 이슈 등록
+
+```bash
+# Phase 5 시작 (Phase 4 미완료 또는 REPORT.md 없으면 거부됨)
+python scripts/qa_cli.py start 5
+```
 
 리포지토리가 입력된 경우에만 실행. `test_result.json`에서 `status: "failed"` 항목 추출 후 이슈 생성:
 
@@ -139,7 +225,20 @@ gh issue create -R {owner/repo} \
 
 생성된 이슈 목록을 `outputs/issues_created.json`에 저장.
 
+```bash
+# Phase 5 완료
+python scripts/qa_cli.py complete 5 --files outputs/issues_created.json
+# skip_github=true인 경우에는 파일 없어도 complete 가능
+# 실패 시:
+# python scripts/qa_cli.py fail 5 "GitHub 이슈 등록 실패: 오류 내용"
+```
+
 ## Phase 5.5: 실패 테스트 자동 수정 (선택)
+
+```bash
+# Phase 5.5 시작 (선택 단계, Phase 5 완료 후)
+python scripts/qa_cli.py start 5.5
+```
 
 실패 건이 있으면 사용자에게 확인:
 > "실패한 테스트 N건을 분석하고 자동 수정하시겠습니까?"
@@ -152,7 +251,19 @@ outputs/test_result.json의 실패 테스트를 분석하고 수정 제안서를
 
 완료 후 `outputs/fix_log.json`, `outputs/test_result.json`, `outputs/REPORT.md` 업데이트 확인.
 
+```bash
+# Phase 5.5 완료
+python scripts/qa_cli.py complete 5.5 --files outputs/fix_log.json
+# 실패 시:
+# python scripts/qa_cli.py fail 5.5 "오류 내용"
+```
+
 ## Phase 6: 정리 (Cleanup)
+
+```bash
+# Phase 6 시작 (Phase 4 완료 후, 5/5.5는 선택적)
+python scripts/qa_cli.py start 6
+```
 
 중간 산출물 삭제:
 ```bash
@@ -163,9 +274,17 @@ rm -f outputs/TEST_EXECUTION_SUMMARY.md
 rm -f outputs/test_result_executed.json
 rm -f outputs/debug_*.png
 rm -f explore_page.py run_test_tc001.py run_tests.py
+rm -f explore_dom*.py create_github_dir.py
 ```
 
 이전 테스트 결과 폴더(`outputs_/`, `outputs__/` 등)가 있으면 삭제 제안.
+
+```bash
+# Phase 6 완료
+python scripts/qa_cli.py complete 6
+# 완료 후 전체 상태 확인:
+python scripts/qa_cli.py status
+```
 
 ## 에러 핸들링
 

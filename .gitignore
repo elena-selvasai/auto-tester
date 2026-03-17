@@ -53,6 +53,13 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# AI가 세션 중 생성하는 임시 스크립트
+explore_*.py
+run_test_tc*.py
+run_tests.py
+create_github_dir.py
+run_commands.bat
+
 # Claude Code local settings
 .claude/settings.local.json
 
