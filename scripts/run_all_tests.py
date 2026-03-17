@@ -107,6 +107,13 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
         selector = action.get("selector")
         if not selector:
             raise ValueError(f"{tc_id}.actions[{action_index}]: click 액션에 selector가 필요합니다.")
+        wait_before = action.get("wait_before")
+        if wait_before:
+            wait_selector = wait_before.get("selector")
+            wait_state = wait_before.get("state", "hidden")
+            wait_timeout = int(wait_before.get("timeout", 5000))
+            if wait_selector:
+                page.wait_for_selector(wait_selector, state=wait_state, timeout=wait_timeout)
         locator = page.locator(selector).first
         locator.scroll_into_view_if_needed(timeout=5000)
         locator.click(timeout=5000)
@@ -160,7 +167,7 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
         if not selector or not attribute:
             raise ValueError(f"{tc_id}.actions[{action_index}]: check_attribute 액션에 selector/attribute가 필요합니다.")
         locator = page.locator(selector).first
-        locator.wait_for(state="attached", timeout=5000)
+        locator.wait_for(state="visible", timeout=5000)
         actual = locator.get_attribute(attribute)
         expected = action.get("expected")
         if expected is not None and str(actual) != str(expected):
