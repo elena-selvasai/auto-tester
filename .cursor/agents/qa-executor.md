@@ -133,21 +133,6 @@ test_plan.json 액션에 `compare_with_reference`가 있으면:
 }
 ```
 
-## 리포트 형식
-
-```markdown
-# QA 테스트 리포트
-
-**URL**: [테스트 URL]
-**Date**: YYYY-MM-DD
-
-## Summary
-- Total: N | Passed: N | Failed: N
-
-## Results
-| TC ID | Name | Status | Message |
-```
-
 ## 주의사항
 
 1. **실제 DOM 우선**: test_plan.json보다 실제 페이지 구조가 우선

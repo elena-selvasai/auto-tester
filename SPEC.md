@@ -1,4 +1,7 @@
-# 서비스명: AI QA 자동화 에이전트
+# AI QA 자동화 — 기술 명세 (단일 원본)
+
+> 이 파일이 Phase 수행 가이드, Key Conventions, 산출물 정의의 **공식 원본**입니다.
+> 다른 문서(CLAUDE.md, README.md, agent 파일)는 이 파일을 참조합니다.
 
 ## 목표
 

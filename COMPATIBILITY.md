@@ -127,7 +127,5 @@ Windows: `winget install GitHub.cli` / macOS: `brew install gh`
 
 ## 관련 문서
 
-- [README.md](README.md) - 프로젝트 개요
-- [SPEC.md](SPEC.md) - 기술 명세 (단일 원본)
-- [.claude/CLAUDE.md](.claude/CLAUDE.md) - Claude Code 프로젝트 지침
-- [.cursor/skills/qa-automation/SKILL.md](.cursor/skills/qa-automation/SKILL.md) - Cursor Skill 정의
+- [SPEC.md](SPEC.md) — 기술 명세 (단일 원본)
+- [README.md](README.md) — 프로젝트 개요
