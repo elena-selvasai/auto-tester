@@ -97,3 +97,5 @@ python .cursor/skills/qa-automation/scripts/validate_json.py outputs/test_plan.j
 | URL 접속 불가 | URL 유효성 확인 |
 | 요소 찾기 실패 | DOM 재분석 후 선택자 수정 |
 | GitHub CLI 미설치 | 설치 안내, `skip_github=true` |
+| **기획서 vs 실제 동작 불일치** | **임의로 pass 처리하지 말고 반드시 사용자에게 확인** |
+| **앱 버그 수정 필요** | **AI는 앱 소스 코드를 수정할 수 없음 — 사용자에게 보고, 수정 후 재테스트 요청 대기** |
