@@ -83,6 +83,19 @@ def generate_report(result_path=DEFAULT_RESULT, report_path=DEFAULT_REPORT):
     lines.append("")
     lines.append("- 실패/스킵 항목은 `outputs/test_result.json`의 상세 메시지와 스크린샷을 함께 검토하세요.")
 
+    failed_with_shots = [
+        item for item in results
+        if item.get("status") == "failed" and item.get("screenshots")
+    ]
+    if failed_with_shots:
+        lines.append("")
+        lines.append("## 실패 케이스 스크린샷")
+        lines.append("")
+        for item in failed_with_shots:
+            lines.append(f"### {item.get('tc_id', '')} — {item.get('name', '')}")
+            for shot in item["screenshots"]:
+                lines.append(f"- `{shot}`")
+
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return report_path

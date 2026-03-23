@@ -49,7 +49,7 @@ python .cursor/skills/qa-automation/scripts/extract_document.py inputs/ --output
 추출 결과(`extract_result.json`, `scenario_draft_source.md`, `reference/`)를 바탕으로 `outputs/scenario_draft.md` 작성.
 
 ```bash
-python scripts/qa_cli.py complete 1 --files outputs/scenario_draft.md outputs/extract_result.json outputs/scenario_draft_source.md
+python scripts/qa_cli.py complete 1
 ```
 
 ### Phase 2: 테스트 설계
@@ -59,7 +59,7 @@ python scripts/qa_cli.py complete 1 --files outputs/scenario_draft.md outputs/ex
 ```bash
 python scripts/qa_cli.py start 2
 python .cursor/skills/qa-automation/scripts/validate_json.py outputs/test_plan.json
-python scripts/qa_cli.py complete 2 --files outputs/test_plan.json
+python scripts/qa_cli.py complete 2
 ```
 
 ### Phase 3: 테스트 실행
@@ -74,7 +74,7 @@ python scripts/qa_cli.py start 3
 구성 체크: `scenario_draft_source.md`의 예상 요소를 DOM에서 확인.
 
 ```bash
-python scripts/qa_cli.py complete 3 --files outputs/test_result.json
+python scripts/qa_cli.py complete 3
 ```
 
 ### Phase 4~6

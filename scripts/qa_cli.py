@@ -27,6 +27,7 @@ Exit Codes:
 
 import sys
 import os
+import json
 import random
 import shutil
 import subprocess
@@ -198,6 +199,22 @@ def phase_num_from_arg(arg):
     return f if f == 5.5 else int(f)
 
 
+def is_phase_done(state, phase_num):
+    """Phase가 completed 또는 skipped 상태인지 확인."""
+    phase = state["phases"].get(get_phase_key(phase_num), {})
+    return phase.get("status") in ("completed", "skipped")
+
+
+def is_workflow_completed(state):
+    """필수 Phase가 모두 완료되었는지 확인 (optional Phase는 무시)."""
+    for phase_num in PHASE_ORDER:
+        if PHASE_META[phase_num].get("optional", False):
+            continue
+        if not is_phase_done(state, phase_num):
+            return False
+    return True
+
+
 def has_supported_input_document(input_dir="inputs"):
     """inputs/ 폴더 내 지원 문서 존재 여부 확인."""
     if not os.path.isdir(input_dir):
@@ -235,6 +252,17 @@ def validate_phase0_config(state):
     test_url = config.get("test_url") or ""
     if not (isinstance(test_url, str) and test_url.startswith(("http://", "https://"))):
         return False, "config.test_url 이 유효하지 않습니다. 예: python scripts/qa_cli.py set test_url http://localhost:3000"
+
+    # precondition 확인
+    precondition = config.get("precondition")
+    skip_precondition = bool(config.get("skip_precondition", False))
+    if not skip_precondition and not isinstance(precondition, dict):
+        return False, (
+            "config.precondition 이 설정되지 않았습니다. 로그인 등 선행 동작이 필요하면:\n"
+            "  python scripts/qa_cli.py set precondition '{\"description\":\"...\",\"actions\":[...],\"success_checks\":[...]}'\n"
+            "선행 동작이 불필요하면:\n"
+            "  python scripts/qa_cli.py set skip_precondition true"
+        )
 
     skip_github = bool(config.get("skip_github", False))
     github_repo = config.get("github_repo") or ""
@@ -440,6 +468,8 @@ def cmd_init(args):
         },
         "config": {
             "test_url": None,
+            "precondition": None,
+            "skip_precondition": False,
             "github_repo": None,
             "skip_github": False,
         },
@@ -548,7 +578,6 @@ def cmd_complete(args):
     if phase_num == 5 and skip_github:
         state["phases"][phase_key]["status"] = "skipped"
         state["phases"][phase_key]["completed_at"] = datetime.now().isoformat()
-        save_state(state)
         print(f"[SKIPPED] Phase 5: GitHub 이슈 등록 (skip_github=true)")
     else:
         # 상태 전환
@@ -556,8 +585,14 @@ def cmd_complete(args):
         state["phases"][phase_key]["status"] = "completed"
         state["phases"][phase_key]["completed_at"] = datetime.now().isoformat()
         state["phases"][phase_key]["outputs"] = produced_files or meta.get("produces", [])
-        save_state(state)
         print(f"[COMPLETE] Phase {phase_num}: {PHASE_META[phase_num]['name']}")
+
+    # 필수 Phase 완료 여부 확인 → overall_status 갱신 (optional Phase는 무시)
+    if is_workflow_completed(state):
+        state["session"]["overall_status"] = "completed"
+    else:
+        state["session"]["overall_status"] = "in_progress"
+    save_state(state)
 
     # 다음 Phase 안내
     nxt = find_next_pending(state)
@@ -595,6 +630,7 @@ def cmd_fail(args):
         "timestamp": datetime.now().isoformat(),
         "message": error_msg,
     })
+    state["session"]["overall_status"] = "failed"
     save_state(state)
 
     print(f"[FAIL] Phase {phase_num}: {PHASE_META[phase_num]['name']}")
@@ -668,6 +704,17 @@ def cmd_status(args):
     print(f"=== QA 자동화 상태 [{session['id']}] ===")
     print(f"전체 상태: {session['overall_status']}")
     print(f"테스트 URL: {config.get('test_url') or '미설정'}")
+    precondition = config.get("precondition")
+    skip_precondition = config.get("skip_precondition", False)
+    if precondition and isinstance(precondition, dict):
+        desc = precondition.get("description") or "(설명 없음)"
+        n_actions = len(precondition.get("actions", []))
+        n_checks = len(precondition.get("success_checks", []))
+        print(f"Precondition: {desc} (actions={n_actions}, success_checks={n_checks})")
+    elif skip_precondition:
+        print(f"Precondition: 불필요 (skip_precondition=true)")
+    else:
+        print(f"Precondition: 미설정")
     print(f"GitHub Repo: {config.get('github_repo') or '미설정'}")
     print(f"GitHub Skip: {config.get('skip_github', False)}")
     print()
@@ -728,7 +775,13 @@ def cmd_set(args):
     """config 값 설정."""
     if len(args) < 2:
         print("Usage: qa_cli.py set <key> <value>")
-        print("  key: test_url | github_repo | skip_github")
+        print("  key: test_url | precondition | skip_precondition | github_repo | skip_github")
+        print()
+        print("  precondition 예시 (JSON 문자열):")
+        print('  python scripts/qa_cli.py set precondition \'{"description":"로그인","actions":[{"action":"click","selector":"#login"}],"success_checks":[{"action":"check","selector":".dashboard"}]}\'')
+        print()
+        print("  선행 동작이 불필요한 경우:")
+        print("  python scripts/qa_cli.py set skip_precondition true")
         return 1
 
     key = args[0]
@@ -739,18 +792,40 @@ def cmd_set(args):
         print("ERROR: 상태 파일이 없습니다. 먼저 실행: python scripts/qa_cli.py init")
         return 1
 
-    valid_keys = ["test_url", "github_repo", "skip_github"]
+    valid_keys = ["test_url", "github_repo", "skip_github", "precondition", "skip_precondition"]
     if key not in valid_keys:
         print(f"ERROR: 알 수 없는 키: {key}")
         print(f"유효한 키: {valid_keys}")
         return 1
 
-    if key == "skip_github":
+    if key in ("skip_github", "skip_precondition"):
         value = value.lower() in ("true", "1", "yes")
+    elif key == "precondition":
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError as e:
+            print(f"ERROR: precondition은 유효한 JSON이어야 합니다: {e}")
+            return 1
+        if not isinstance(parsed, dict):
+            print("ERROR: precondition은 JSON 객체여야 합니다.")
+            return 1
+        if not isinstance(parsed.get("actions"), list) or len(parsed["actions"]) == 0:
+            print("ERROR: precondition.actions는 비어 있지 않은 배열이어야 합니다.")
+            return 1
+        if not isinstance(parsed.get("success_checks"), list) or len(parsed["success_checks"]) == 0:
+            print("ERROR: precondition.success_checks는 비어 있지 않은 배열이어야 합니다.")
+            return 1
+        value = parsed
 
     state["config"][key] = value
     save_state(state)
-    print(f"[SET] config.{key} = {value}")
+    if key == "precondition":
+        desc = value.get("description") or ""
+        n_actions = len(value.get("actions", []))
+        n_checks = len(value.get("success_checks", []))
+        print(f"[SET] config.precondition = {desc!r} (actions={n_actions}, success_checks={n_checks})")
+    else:
+        print(f"[SET] config.{key} = {value}")
     return 0
 
 

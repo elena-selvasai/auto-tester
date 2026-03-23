@@ -58,6 +58,8 @@ def _load_extractor(format_type, script_dir):
     path = os.path.join(script_dir, name + ".py")
     if not os.path.exists(path):
         return None
+    if script_dir not in sys.path:
+        sys.path.insert(0, script_dir)
     spec = importlib.util.spec_from_file_location(name, path)
     mod = importlib.util.module_from_spec(spec)
     sys.modules[name] = mod
@@ -80,7 +82,6 @@ def extract_document(path, output_dir=None, reference_dir=None, script_dir=None)
         print(f"Error: 추출기 없음 - {format_type} (파일: {EXTRACTOR_ENTRY.get(format_type, '')}.py)")
         return None
 
-    fn_name = EXTRACTOR_ENTRY[format_type].replace("extract_", "")  # pptx, docx, pdf, images
     if format_type == "image":
         fn_name = "extract_images"
     else:

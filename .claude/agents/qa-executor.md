@@ -19,7 +19,7 @@ python scripts/qa_cli.py start 3
 
 ```bash
 # 완료 후 — outputs/test_result.json 없으면 exit code 2로 거부됨.
-python scripts/qa_cli.py complete 3 --files outputs/test_result.json
+python scripts/qa_cli.py complete 3
 ```
 
 ```bash

@@ -19,7 +19,7 @@ python scripts/qa_cli.py start 5.5
 
 ```bash
 # 완료 후 — fix_log.json이 없어도 complete 가능 (선택 단계)
-python scripts/qa_cli.py complete 5.5 --files outputs/fix_log.json
+python scripts/qa_cli.py complete 5.5
 ```
 
 ```bash

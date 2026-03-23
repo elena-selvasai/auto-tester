@@ -151,6 +151,29 @@ python scripts/qa_cli.py start 2
 
 지원 액션: `navigate`, `click`, `input`, `check`, `wait`, `screenshot`, `hover`, `check_attribute`, `compare_with_reference`
 
+선택적으로 루트 또는 각 테스트 케이스에 `precondition` 블록을 둘 수 있습니다:
+
+```json
+{
+  "precondition": {
+    "description": "테스트 진입 전 선행 조건",
+    "actions": [
+      {"action": "click", "selector": ".icon_frame"},
+      {"action": "wait", "timeout": 1500}
+    ],
+    "success_checks": [
+      {"action": "check", "selector": "button:has-text(\"클래스톡\")", "visible": true}
+    ]
+  }
+}
+```
+
+- 러너는 **각 테스트 시작 전마다** `precondition.actions`를 수행합니다.
+- 이어서 `precondition.success_checks`가 모두 통과한 경우에만 본 `actions`를 실행합니다.
+- `precondition` 검증이 실패하면 해당 테스트는 즉시 `failed` 처리되며, 본 액션은 실행하지 않습니다.
+- 루트 `precondition`과 테스트 케이스별 `precondition`이 모두 있으면 **루트 → 테스트 케이스 순서**로 모두 적용합니다.
+- 동일한 선행 조건을 여러 테스트에 반복해야 할 때는 본 `actions`에 복사하지 말고 `precondition`으로 선언합니다.
+
 ### 선택자 우선순위
 
 `data-testid` > `id` > `aria-label` > `class`

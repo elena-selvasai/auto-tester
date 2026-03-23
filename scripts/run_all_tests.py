@@ -36,6 +36,13 @@ SUPPORTED_CATEGORIES = [
     "accessibility",
 ]
 
+# HTML 불리언 속성: 존재 여부로 상태를 나타냄 (값이 아닌 존재/부재로 true/false 판단)
+BOOLEAN_ATTRIBUTES = {
+    "disabled", "checked", "readonly", "selected", "required",
+    "multiple", "autofocus", "hidden", "autoplay", "controls",
+    "loop", "muted", "open", "reversed", "default",
+}
+
 
 def load_compare_function():
     """Load compare_screenshot function from shared script if available."""
@@ -88,6 +95,93 @@ def ensure_outputs_dir():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def normalize_precondition(precondition, source_label):
+    """Validate and normalize one precondition block."""
+    if precondition is None:
+        return None
+    if not isinstance(precondition, dict):
+        raise ValueError(f"{source_label}: precondition은 객체여야 합니다.")
+
+    actions = precondition.get("actions")
+    success_checks = precondition.get("success_checks")
+    if not isinstance(actions, list) or len(actions) == 0:
+        raise ValueError(f"{source_label}: precondition.actions는 비어 있지 않은 배열이어야 합니다.")
+    if not isinstance(success_checks, list) or len(success_checks) == 0:
+        raise ValueError(f"{source_label}: precondition.success_checks는 비어 있지 않은 배열이어야 합니다.")
+
+    return {
+        "description": precondition.get("description", ""),
+        "actions": actions,
+        "success_checks": success_checks,
+    }
+
+
+def merge_preconditions(global_precondition, test_precondition):
+    """Merge root-level and test-level preconditions."""
+    normalized_blocks = []
+    if global_precondition is not None:
+        normalized_blocks.append(normalize_precondition(global_precondition, "root.precondition"))
+    if test_precondition is not None:
+        normalized_blocks.append(normalize_precondition(test_precondition, "tc.precondition"))
+
+    if not normalized_blocks:
+        return None
+
+    merged = {
+        "description": " / ".join(block["description"] for block in normalized_blocks if block.get("description")),
+        "actions": [],
+        "success_checks": [],
+    }
+    for block in normalized_blocks:
+        merged["actions"].extend(block["actions"])
+        merged["success_checks"].extend(block["success_checks"])
+    return merged
+
+
+def execute_action_sequence(page, tc_id, actions, base_url, compare_func, compare_records):
+    """Execute a list of actions and collect success messages/screenshots."""
+    action_messages = []
+    screenshots = []
+    for idx, action in enumerate(actions):
+        msg = execute_action(page, tc_id, action, idx, base_url, compare_func, compare_records)
+        action_messages.append(msg)
+        if msg.startswith("screenshot:"):
+            screenshots.append(msg[len("screenshot:"):].strip())
+    return action_messages, screenshots
+
+
+def run_precondition(page, tc_id, precondition, base_url, compare_func, compare_records):
+    """Run precondition actions and verify success before the main test."""
+    if precondition is None:
+        return [], []
+
+    precondition_messages = []
+    screenshots = []
+
+    action_messages, action_screenshots = execute_action_sequence(
+        page,
+        f"{tc_id}.precondition",
+        precondition["actions"],
+        base_url,
+        compare_func,
+        compare_records,
+    )
+    precondition_messages.extend(action_messages)
+    screenshots.extend(action_screenshots)
+
+    check_messages, check_screenshots = execute_action_sequence(
+        page,
+        f"{tc_id}.precondition_check",
+        precondition["success_checks"],
+        base_url,
+        compare_func,
+        compare_records,
+    )
+    precondition_messages.extend(check_messages)
+    screenshots.extend(check_screenshots)
+    return precondition_messages, screenshots
+
+
 def execute_action(page, tc_id, action, action_index, base_url, compare_func, compare_records):
     """Execute one action and return a short success message."""
     action_type = action.get("action")
@@ -99,8 +193,12 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
         if not raw_url:
             raise ValueError(f"{tc_id}.actions[{action_index}]: navigate 액션에 url이 필요합니다.")
         url = expand_placeholders(raw_url, base_url)
+        wait_until = action.get("wait_until", "networkidle")
         page.goto(url, timeout=30000)
-        page.wait_for_load_state("networkidle", timeout=15000)
+        try:
+            page.wait_for_load_state(wait_until, timeout=15000)
+        except PlaywrightTimeoutError:
+            pass  # SPA 등에서 networkidle 타임아웃은 무시
         return f"navigate: {url}"
 
     if action_type == "click":
@@ -141,6 +239,11 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
             locator = page.locator(selector)
             if visible is not False:
                 locator.first.wait_for(state="visible", timeout=5000)
+            elif visible is False:
+                if locator.first.is_visible():
+                    raise AssertionError(
+                        f"{tc_id}.actions[{action_index}]: 요소가 숨김 상태여야 하지만 보임: {selector}"
+                    )
             count = locator.count()
             if expected_count is not None and count != int(expected_count):
                 raise AssertionError(
@@ -170,10 +273,19 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
         locator.wait_for(state="visible", timeout=5000)
         actual = locator.get_attribute(attribute)
         expected = action.get("expected")
-        if expected is not None and str(actual) != str(expected):
-            raise AssertionError(
-                f"{tc_id}.actions[{action_index}]: attribute mismatch ({attribute}={actual}, expected={expected})"
-            )
+        if expected is not None:
+            if attribute.lower() in BOOLEAN_ATTRIBUTES and str(expected).lower() in ("true", "false"):
+                # 불리언 속성: 속성 존재 여부로 true/false 판단 (값이 아닌 존재/부재)
+                actual_bool = "true" if actual is not None else "false"
+                if actual_bool != str(expected).lower():
+                    raise AssertionError(
+                        f"{tc_id}.actions[{action_index}]: boolean attribute mismatch "
+                        f"({attribute} present={actual is not None}, expected={expected})"
+                    )
+            elif str(actual) != str(expected):
+                raise AssertionError(
+                    f"{tc_id}.actions[{action_index}]: attribute mismatch ({attribute}={actual}, expected={expected})"
+                )
         return f"check_attribute: {selector}[{attribute}]={actual}"
 
     if action_type == "wait":
@@ -233,31 +345,62 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
     raise ValueError(f"{tc_id}.actions[{action_index}]: 지원하지 않는 action '{action_type}'")
 
 
-def execute_test_case(page, tc, base_url, compare_func, compare_records):
-    """Execute one test case and return status/message/elapsed."""
+def execute_test_case(page, tc, base_url, compare_func, compare_records, global_precondition=None):
+    """Execute one test case and return status/message/elapsed/screenshots."""
     tc_id = tc.get("tc_id", "UNKNOWN")
     actions = tc.get("actions", [])
     if not isinstance(actions, list) or len(actions) == 0:
-        return "skipped", "actions가 비어 있어 실행을 건너뜀", 0
+        return "skipped", "actions가 비어 있어 실행을 건너뜀", 0, []
 
     start_time = time.time()
+    screenshots = []
+    execution_stage = "actions"
     try:
         action_messages = []
-        for idx, action in enumerate(actions):
-            action_messages.append(execute_action(page, tc_id, action, idx, base_url, compare_func, compare_records))
+
+        precondition = merge_preconditions(global_precondition, tc.get("precondition"))
+        if precondition is not None:
+            execution_stage = "precondition"
+            precondition_messages, precondition_screenshots = run_precondition(
+                page,
+                tc_id,
+                precondition,
+                base_url,
+                compare_func,
+                compare_records,
+            )
+            screenshots.extend(precondition_screenshots)
+            if precondition_messages:
+                action_messages.append("precondition: ok")
+
+        execution_stage = "actions"
+        sequence_messages, sequence_screenshots = execute_action_sequence(
+            page,
+            tc_id,
+            actions,
+            base_url,
+            compare_func,
+            compare_records,
+        )
+        action_messages.extend(sequence_messages)
+        screenshots.extend(sequence_screenshots)
         elapsed_ms = int((time.time() - start_time) * 1000)
-        return "passed", "; ".join(action_messages[-3:]), elapsed_ms
+        return "passed", "; ".join(action_messages[-3:]), elapsed_ms, screenshots
     except (PlaywrightTimeoutError, PlaywrightError, AssertionError, ValueError, RuntimeError, TypeError, AttributeError) as exc:
-        error_shot = OUTPUT_DIR / f"screenshot_{tc_id}_error.png"
+        screenshot_name = f"screenshot_{tc_id}_precondition_error.png" if execution_stage == "precondition" else f"screenshot_{tc_id}_error.png"
+        error_shot = OUTPUT_DIR / screenshot_name
         try:
             page.screenshot(path=str(error_shot))
+            screenshots.append(str(error_shot))
         except PlaywrightError:
             pass
         elapsed_ms = int((time.time() - start_time) * 1000)
-        return "failed", str(exc), elapsed_ms
+        if execution_stage == "precondition":
+            return "failed", f"precondition failed: {exc}", elapsed_ms, screenshots
+        return "failed", str(exc), elapsed_ms, screenshots
 
 
-def run_all_tests(test_plan_path=DEFAULT_TEST_PLAN_PATH, base_url=None, headless=True):
+def run_all_tests(test_plan_path=DEFAULT_TEST_PLAN_PATH, base_url=None, headless=True, cli_precondition=None):
     """Run all test cases in test_plan.json."""
     ensure_outputs_dir()
     test_plan_path = Path(test_plan_path)
@@ -272,6 +415,8 @@ def run_all_tests(test_plan_path=DEFAULT_TEST_PLAN_PATH, base_url=None, headless
         raise ValueError("test_plan.json의 test_cases는 배열이어야 합니다.")
 
     resolved_base_url = resolve_base_url(test_plan, cli_base_url=base_url)
+    # CLI로 전달된 precondition이 있으면 test_plan의 precondition보다 우선
+    global_precondition = cli_precondition if cli_precondition is not None else test_plan.get("precondition")
     compare_func = load_compare_function()
     compare_records = []
 
@@ -297,23 +442,31 @@ def run_all_tests(test_plan_path=DEFAULT_TEST_PLAN_PATH, base_url=None, headless
                 category_summary[category] = {"total": 0, "passed": 0, "failed": 0, "skipped": 0, "errors": 0}
             category_summary[category]["total"] += 1
 
-            status, message, elapsed_ms = execute_test_case(page, tc, resolved_base_url, compare_func, compare_records)
+            status, message, elapsed_ms, screenshots = execute_test_case(
+                page,
+                tc,
+                resolved_base_url,
+                compare_func,
+                compare_records,
+                global_precondition=global_precondition,
+            )
             summary[status] += 1
             category_summary[category][status] += 1
 
             print(f"[{tc_id}] {name} -> {status.upper()}: {message}")
-            results.append(
-                {
-                    "tc_id": tc_id,
-                    "category": category,
-                    "name": name,
-                    "status": status,
-                    "message": message,
-                    "expected": expected,
-                    "priority": priority,
-                    "elapsed_ms": elapsed_ms,
-                }
-            )
+            result_entry = {
+                "tc_id": tc_id,
+                "category": category,
+                "name": name,
+                "status": status,
+                "message": message,
+                "expected": expected,
+                "priority": priority,
+                "elapsed_ms": elapsed_ms,
+            }
+            if screenshots:
+                result_entry["screenshots"] = screenshots
+            results.append(result_entry)
 
         browser.close()
 
@@ -347,8 +500,23 @@ def main():
     parser.add_argument("--test-plan", default=str(DEFAULT_TEST_PLAN_PATH), help="Path to test_plan.json")
     parser.add_argument("--base-url", default=None, help="Base URL override")
     parser.add_argument("--headed", action="store_true", help="Run browser in headed mode")
+    parser.add_argument("--precondition", default=None, help="Precondition JSON string (overrides test_plan precondition)")
     args = parser.parse_args()
-    run_all_tests(test_plan_path=args.test_plan, base_url=args.base_url, headless=not args.headed)
+
+    cli_precondition = None
+    if args.precondition:
+        try:
+            cli_precondition = json.loads(args.precondition)
+        except json.JSONDecodeError as e:
+            print(f"ERROR: --precondition 인자가 유효한 JSON이 아닙니다: {e}")
+            sys.exit(1)
+
+    run_all_tests(
+        test_plan_path=args.test_plan,
+        base_url=args.base_url,
+        headless=not args.headed,
+        cli_precondition=cli_precondition,
+    )
 
 
 if __name__ == "__main__":

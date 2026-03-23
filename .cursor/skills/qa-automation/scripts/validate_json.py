@@ -27,9 +27,60 @@ def validate_test_plan(json_path):
     errors = []
     warnings = []
     
+    def validate_action_list(action_list, owner_label):
+        """actions / precondition action list 공통 검증."""
+        valid_actions = ['navigate', 'click', 'input', 'check', 'wait', 'screenshot', 'hover', 'check_attribute', 'compare_with_reference']
+        if not isinstance(action_list, list):
+            errors.append(f"{owner_label}: 배열이어야 합니다")
+            return
+        if len(action_list) == 0:
+            errors.append(f"{owner_label}: 비어 있으면 안 됩니다")
+            return
+
+        for j, action in enumerate(action_list):
+            if not isinstance(action, dict):
+                errors.append(f"{owner_label}[{j}]: 객체여야 합니다")
+                continue
+            if 'action' not in action:
+                errors.append(f"{owner_label}[{j}]: action 타입 누락")
+                continue
+            if action['action'] not in valid_actions:
+                warnings.append(f"{owner_label}[{j}]: 알 수 없는 액션 '{action['action']}'")
+
+            action_type = action.get('action')
+            if action_type == 'navigate' and 'url' not in action:
+                errors.append(f"{owner_label}[{j}]: navigate 액션에 url 필요")
+            if action_type == 'click' and 'selector' not in action:
+                warnings.append(f"{owner_label}[{j}]: click 액션에 selector 권장")
+            if action_type == 'input' and ('selector' not in action or 'value' not in action):
+                errors.append(f"{owner_label}[{j}]: input 액션에 selector, value 필요")
+            if action_type == 'compare_with_reference':
+                if 'reference' not in action and 'reference_path' not in action:
+                    warnings.append(f"{owner_label}[{j}]: compare_with_reference에 reference 또는 reference_path 권장")
+                if 'screenshot' not in action and 'actual_path' not in action:
+                    warnings.append(f"{owner_label}[{j}]: compare_with_reference 시 스크린샷 경로 또는 촬영 후 경로 필요")
+
+    def validate_precondition(precondition, owner_label):
+        """precondition 블록 검증."""
+        if not isinstance(precondition, dict):
+            errors.append(f"{owner_label}: 객체여야 합니다")
+            return
+        if 'actions' not in precondition:
+            errors.append(f"{owner_label}: actions 누락")
+        else:
+            validate_action_list(precondition['actions'], f"{owner_label}.actions")
+
+        if 'success_checks' not in precondition:
+            errors.append(f"{owner_label}: success_checks 누락")
+        else:
+            validate_action_list(precondition['success_checks'], f"{owner_label}.success_checks")
+
     # 필수 필드 확인
     if 'test_plan_id' not in data:
         errors.append("필수 필드 누락: test_plan_id")
+
+    if 'precondition' in data:
+        validate_precondition(data['precondition'], "root.precondition")
     
     if 'test_cases' not in data:
         errors.append("필수 필드 누락: test_cases")
@@ -39,38 +90,19 @@ def validate_test_plan(json_path):
         warnings.append("test_cases가 비어있습니다")
     else:
         # 테스트 케이스 검증
-        valid_actions = ['navigate', 'click', 'input', 'check', 'wait', 'screenshot', 'hover', 'check_attribute', 'compare_with_reference']
-
         for i, tc in enumerate(data['test_cases']):
             tc_id = tc.get('tc_id', f'index_{i}')
             
             if 'tc_id' not in tc:
                 errors.append(f"테스트 케이스 {i}: tc_id 누락")
+
+            if 'precondition' in tc:
+                validate_precondition(tc['precondition'], f"{tc_id}.precondition")
             
             if 'actions' not in tc:
                 errors.append(f"{tc_id}: actions 누락")
-            elif not isinstance(tc['actions'], list):
-                errors.append(f"{tc_id}: actions는 배열이어야 합니다")
             else:
-                for j, action in enumerate(tc['actions']):
-                    if 'action' not in action:
-                        errors.append(f"{tc_id}.actions[{j}]: action 타입 누락")
-                    elif action['action'] not in valid_actions:
-                        warnings.append(f"{tc_id}.actions[{j}]: 알 수 없는 액션 '{action['action']}'")
-                    
-                    # 액션별 필수 파라미터 확인
-                    action_type = action.get('action')
-                    if action_type == 'navigate' and 'url' not in action:
-                        errors.append(f"{tc_id}.actions[{j}]: navigate 액션에 url 필요")
-                    if action_type == 'click' and 'selector' not in action:
-                        warnings.append(f"{tc_id}.actions[{j}]: click 액션에 selector 권장")
-                    if action_type == 'input' and ('selector' not in action or 'value' not in action):
-                        errors.append(f"{tc_id}.actions[{j}]: input 액션에 selector, value 필요")
-                    if action_type == 'compare_with_reference':
-                        if 'reference' not in action and 'reference_path' not in action:
-                            warnings.append(f"{tc_id}.actions[{j}]: compare_with_reference에 reference 또는 reference_path 권장")
-                        if 'screenshot' not in action and 'actual_path' not in action:
-                            warnings.append(f"{tc_id}.actions[{j}]: compare_with_reference 시 스크린샷 경로 또는 촬영 후 경로 필요")
+                validate_action_list(tc['actions'], f"{tc_id}.actions")
 
     # 결과 출력
     print(f"=== {os.path.basename(json_path)} 검증 결과 ===\n")

@@ -61,26 +61,34 @@ Phase별 상세 가이드는 [SPEC.md](SPEC.md) 참조.
 python scripts/qa_cli.py start 0
 python scripts/qa_cli.py set test_url http://localhost:3000
 python scripts/qa_cli.py set github_repo owner/repo
+# 로그인 등 선행 동작이 필요한 경우 (선택)
+python scripts/qa_cli.py set precondition '{"description":"로그인","actions":[{"action":"navigate","url":"${base_url}/login"},{"action":"input","selector":"#id","value":"user"},{"action":"input","selector":"#pw","value":"pass"},{"action":"click","selector":"#login-btn"}],"success_checks":[{"action":"check","selector":".main-page"}]}'
 python scripts/qa_cli.py complete 0
 
 # Phase 1: 문서 분석
 python scripts/qa_cli.py start 1
+# 1-a) 스크립트로 원본 데이터 추출 (extract_result.json, scenario_draft_source.md 생성)
 python .cursor/skills/qa-automation/scripts/extract_document.py inputs/ --output outputs
-python scripts/qa_cli.py complete 1 --files outputs/scenario_draft.md
+# 1-b) AI 에이전트(doc-analyst)가 outputs/scenario_draft.md 생성
+#   Cursor:      @doc-analyst inputs/ 기획서 분석해줘
+#   Claude Code: doc-analyst로 outputs/scenario_draft.md 생성해줘
+# 1-c) scenario_draft.md 생성 확인 후 완료
+#   (outputs/scenario_draft.md 없으면 complete 명령이 거부됩니다)
+python scripts/qa_cli.py complete 1
 
 # Phase 2: 테스트 설계 (AI가 test_plan.json 생성)
 python scripts/qa_cli.py start 2
-python scripts/qa_cli.py complete 2 --files outputs/test_plan.json
+python scripts/qa_cli.py complete 2
 
 # Phase 3: 테스트 실행
 python scripts/qa_cli.py start 3
 python scripts/run_all_tests.py --test-plan outputs/test_plan.json --base-url "http://localhost:3000"
-python scripts/qa_cli.py complete 3 --files outputs/test_result.json
+python scripts/qa_cli.py complete 3
 
 # Phase 4~6
 python scripts/qa_cli.py start 4
 python scripts/generate_report.py --result outputs/test_result.json --output outputs/REPORT.md
-python scripts/qa_cli.py complete 4 --files outputs/REPORT.md
+python scripts/qa_cli.py complete 4
 ```
 
 ## 서브에이전트 직접 호출

@@ -10,20 +10,18 @@ import os
 import shutil
 import sys
 
+from _utils import parse_reference_dir, resolve_ref_dir, setup_stdout_utf8, to_rel_path
+
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
 
 
-def extract_images(path, output_path=None, reference_dir=None):
-    """이미지 경로를 공통 스키마로 반환. 복사는 하지 않고 경로만 참조하거나 reference_dir로 복사."""
+def extract_images(path, reference_dir=None):
+    """이미지 경로를 공통 스키마로 반환. reference_dir로 복사 후 상대경로 등록."""
     if not os.path.exists(path):
         print(f"Error: 파일을 찾을 수 없습니다 - {path}")
         return None
 
-    ref_dir = reference_dir or "outputs/reference"
-    ref_dir = os.path.normpath(ref_dir)
-    if not os.path.isabs(ref_dir):
-        ref_dir = os.path.join(os.getcwd(), ref_dir)
-    os.makedirs(ref_dir, exist_ok=True)
+    ref_dir = resolve_ref_dir(reference_dir)
 
     files = []
     if os.path.isfile(path):
@@ -44,16 +42,13 @@ def extract_images(path, output_path=None, reference_dir=None):
     reference_images = []
     for page_num, abs_src in files:
         name = os.path.basename(abs_src)
-        rel_dest = os.path.join(ref_dir, f"ref_page_{page_num}_{name}")
+        abs_dest = os.path.join(ref_dir, f"ref_page_{page_num}_{name}")
         try:
-            shutil.copy2(abs_src, rel_dest)
+            shutil.copy2(abs_src, abs_dest)
         except Exception as e:
             print(f"Warning: 복사 실패 {abs_src} - {e}")
-            rel_dest = abs_src
-        try:
-            rel_path = os.path.relpath(rel_dest, os.getcwd()).replace("\\", "/")
-        except ValueError:
-            rel_path = os.path.join("outputs", "reference", f"ref_page_{page_num}_{name}").replace("\\", "/")
+            abs_dest = abs_src
+        rel_path = to_rel_path(abs_dest, os.path.join("outputs", "reference", f"ref_page_{page_num}_{name}"))
         pages_out.append({
             "page_num": page_num,
             "texts": [],
@@ -79,18 +74,9 @@ def main():
     if len(sys.argv) < 2:
         print("Usage: python extract_images.py <path> [--reference-dir DIR]")
         sys.exit(1)
-    path = sys.argv[1]
-    ref_dir = None
-    for i, a in enumerate(sys.argv[2:], 2):
-        if a == "--reference-dir" and i < len(sys.argv) - 1:
-            ref_dir = sys.argv[i]
-            break
-    if sys.stdout.encoding != "utf-8":
-        try:
-            sys.stdout.reconfigure(encoding="utf-8")
-        except Exception:
-            pass
-    r = extract_images(path, reference_dir=ref_dir)
+
+    setup_stdout_utf8()
+    r = extract_images(sys.argv[1], reference_dir=parse_reference_dir(sys.argv))
     sys.exit(0 if r is not None else 1)
 
 

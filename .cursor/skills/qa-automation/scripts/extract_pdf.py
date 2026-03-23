@@ -8,8 +8,10 @@ Usage: python extract_pdf.py <pdf_path> [--reference-dir DIR]
 import os
 import sys
 
+from _utils import parse_reference_dir, resolve_ref_dir, setup_stdout_utf8, to_rel_path
 
-def extract_pdf(pdf_path, output_path=None, reference_dir=None):
+
+def extract_pdf(pdf_path, reference_dir=None):
     """PDF 파일에서 내용 추출. 공통 스키마 반환."""
     try:
         import fitz  # PyMuPDF
@@ -22,11 +24,7 @@ def extract_pdf(pdf_path, output_path=None, reference_dir=None):
         print(f"Error: 파일을 찾을 수 없습니다 - {pdf_path}")
         return None
 
-    ref_dir = reference_dir or "outputs/reference"
-    ref_dir = os.path.normpath(ref_dir)
-    if not os.path.isabs(ref_dir):
-        ref_dir = os.path.join(os.getcwd(), ref_dir)
-    os.makedirs(ref_dir, exist_ok=True)
+    ref_dir = resolve_ref_dir(reference_dir)
 
     doc = fitz.open(pdf_path)
     pages_out = []
@@ -38,7 +36,6 @@ def extract_pdf(pdf_path, output_path=None, reference_dir=None):
         for block in page.get_text("blocks"):
             if block[4].strip():
                 texts.append(block[4].strip())
-        tables = []
         images = []
 
         for img_info in page.get_images():
@@ -53,10 +50,7 @@ def extract_pdf(pdf_path, output_path=None, reference_dir=None):
                 abs_path = os.path.join(ref_dir, rel_name)
                 with open(abs_path, "wb") as f:
                     f.write(data)
-                try:
-                    rel_path = os.path.relpath(abs_path, os.getcwd()).replace("\\", "/")
-                except ValueError:
-                    rel_path = os.path.join("outputs", "reference", rel_name).replace("\\", "/")
+                rel_path = to_rel_path(abs_path, os.path.join("outputs", "reference", rel_name))
                 images.append({"path": rel_path, "description": ""})
                 reference_images.append({"source_page": page_num + 1, "path": rel_path})
             except Exception:
@@ -67,16 +61,13 @@ def extract_pdf(pdf_path, output_path=None, reference_dir=None):
         render_name = f"pdf_page_{page_num + 1}.png"
         render_path = os.path.join(ref_dir, render_name)
         pix.save(render_path)
-        try:
-            render_rel = os.path.relpath(render_path, os.getcwd()).replace("\\", "/")
-        except ValueError:
-            render_rel = os.path.join("outputs", "reference", render_name).replace("\\", "/")
+        render_rel = to_rel_path(render_path, os.path.join("outputs", "reference", render_name))
         reference_images.append({"source_page": page_num + 1, "path": render_rel})
 
         pages_out.append({
             "page_num": page_num + 1,
             "texts": texts,
-            "tables": tables,
+            "tables": [],
             "notes": "",
             "images": images,
         })
@@ -102,18 +93,9 @@ def main():
     if len(sys.argv) < 2:
         print("Usage: python extract_pdf.py <pdf_path> [--reference-dir DIR]")
         sys.exit(1)
-    path = sys.argv[1]
-    ref_dir = None
-    for i, a in enumerate(sys.argv[2:], 2):
-        if a == "--reference-dir" and i < len(sys.argv) - 1:
-            ref_dir = sys.argv[i]
-            break
-    if sys.stdout.encoding != "utf-8":
-        try:
-            sys.stdout.reconfigure(encoding="utf-8")
-        except Exception:
-            pass
-    r = extract_pdf(path, reference_dir=ref_dir)
+
+    setup_stdout_utf8()
+    r = extract_pdf(sys.argv[1], reference_dir=parse_reference_dir(sys.argv))
     sys.exit(0 if r is not None else 1)
 
 
