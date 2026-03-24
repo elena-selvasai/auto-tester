@@ -281,9 +281,20 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
                 # 불리언 속성: 속성 존재 여부로 true/false 판단 (값이 아닌 존재/부재)
                 actual_bool = "true" if actual is not None else "false"
                 if actual_bool != str(expected).lower():
+                    hint = ""
+                    if attribute.lower() == "disabled":
+                        if str(expected).lower() == "true":
+                            hint = " (요소가 비활성화 상태여야 하지만 활성화되어 있음)"
+                        else:
+                            hint = " (요소가 활성화 상태여야 하지만 비활성화되어 있음)"
+                    elif attribute.lower() == "checked":
+                        if str(expected).lower() == "true":
+                            hint = " (체크되어야 하지만 체크되지 않음)"
+                        else:
+                            hint = " (체크되지 않아야 하지만 체크되어 있음)"
                     raise AssertionError(
                         f"{tc_id}.actions[{action_index}]: boolean attribute mismatch "
-                        f"({attribute} present={actual is not None}, expected={expected})"
+                        f"({attribute} present={actual is not None}, expected={expected}){hint}"
                     )
             elif str(actual) != str(expected):
                 raise AssertionError(
