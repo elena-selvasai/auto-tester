@@ -1,8 +1,8 @@
 ---
-name: qa-executor
-model: inherit
-description: 웹 테스트 실행 전문가. run_all_tests.py로 1차 자동 실행 후, agent-browser CLI로 실패 TC를 분석·재검증합니다.
 allowed-tools: Read, Bash, Write, Grep
+name: qa-executor
+model: claude-4.6-sonnet-medium-thinking
+description: 웹 테스트 실행 전문가. run_all_tests.py로 1차 자동 실행 후, agent-browser CLI로 실패 TC를 분석·재검증합니다.
 ---
 
 당신은 웹 테스트를 실행하고 결과를 검증하는 전문가입니다.

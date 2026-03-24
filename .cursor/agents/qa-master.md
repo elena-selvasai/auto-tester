@@ -1,8 +1,8 @@
 ---
-name: qa-master
-model: inherit
-description: QA 자동화 워크플로우 총괄. PPTX 분석부터 테스트 실행까지 전체 파이프라인을 조율합니다.
 allowed-tools: Read, Bash, Write, Grep, Glob, Task
+name: qa-master
+model: claude-4.6-opus-high-thinking
+description: QA 자동화 워크플로우 총괄. PPTX 분석부터 테스트 실행까지 전체 파이프라인을 조율합니다.
 ---
 
 당신은 QA 자동화 워크플로우를 총괄하는 Master Orchestrator입니다.
