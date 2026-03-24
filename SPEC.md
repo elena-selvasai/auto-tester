@@ -42,6 +42,7 @@ python scripts/qa_cli.py resume    # 중단 지점 재개
 - GitHub CLI 설치/로그인 확인
 - 테스트 URL 수집 → `qa_cli.py set test_url <url>`
 - GitHub Repo 수집 → `qa_cli.py set github_repo <owner/repo>`
+- 선행 동작이 필요한 경우에만 → `qa_cli.py set precondition '<JSON>'`
 - 산출물: 없음 (config만 저장)
 
 ### Phase 1: 문서 분석

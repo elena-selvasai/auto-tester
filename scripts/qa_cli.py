@@ -253,15 +253,14 @@ def validate_phase0_config(state):
     if not (isinstance(test_url, str) and test_url.startswith(("http://", "https://"))):
         return False, "config.test_url 이 유효하지 않습니다. 예: python scripts/qa_cli.py set test_url http://localhost:3000"
 
-    # precondition 확인
+    # precondition 확인: 미설정(None)이면 "선행 동작 없음"으로 간주하여 통과
     precondition = config.get("precondition")
-    skip_precondition = bool(config.get("skip_precondition", False))
-    if not skip_precondition and not isinstance(precondition, dict):
+    if precondition is not None and not isinstance(precondition, dict):
         return False, (
-            "config.precondition 이 설정되지 않았습니다. 로그인 등 선행 동작이 필요하면:\n"
+            "config.precondition 형식이 잘못되었습니다. JSON 객체여야 합니다:\n"
             "  python scripts/qa_cli.py set precondition '{\"description\":\"...\",\"actions\":[...],\"success_checks\":[...]}'\n"
-            "선행 동작이 불필요하면:\n"
-            "  python scripts/qa_cli.py set skip_precondition true"
+            "선행 동작을 제거하려면:\n"
+            "  python scripts/qa_cli.py set precondition none"
         )
 
     skip_github = bool(config.get("skip_github", False))
@@ -469,7 +468,6 @@ def cmd_init(args):
         "config": {
             "test_url": None,
             "precondition": None,
-            "skip_precondition": False,
             "github_repo": None,
             "skip_github": False,
         },
@@ -705,16 +703,13 @@ def cmd_status(args):
     print(f"전체 상태: {session['overall_status']}")
     print(f"테스트 URL: {config.get('test_url') or '미설정'}")
     precondition = config.get("precondition")
-    skip_precondition = config.get("skip_precondition", False)
     if precondition and isinstance(precondition, dict):
         desc = precondition.get("description") or "(설명 없음)"
         n_actions = len(precondition.get("actions", []))
         n_checks = len(precondition.get("success_checks", []))
         print(f"Precondition: {desc} (actions={n_actions}, success_checks={n_checks})")
-    elif skip_precondition:
-        print(f"Precondition: 불필요 (skip_precondition=true)")
     else:
-        print(f"Precondition: 미설정")
+        print(f"Precondition: 없음 (선행 동작 불필요)")
     print(f"GitHub Repo: {config.get('github_repo') or '미설정'}")
     print(f"GitHub Skip: {config.get('skip_github', False)}")
     print()
@@ -775,13 +770,13 @@ def cmd_set(args):
     """config 값 설정."""
     if len(args) < 2:
         print("Usage: qa_cli.py set <key> <value>")
-        print("  key: test_url | precondition | skip_precondition | github_repo | skip_github")
+        print("  key: test_url | precondition | github_repo | skip_github")
         print()
         print("  precondition 예시 (JSON 문자열):")
         print('  python scripts/qa_cli.py set precondition \'{"description":"로그인","actions":[{"action":"click","selector":"#login"}],"success_checks":[{"action":"check","selector":".dashboard"}]}\'')
         print()
-        print("  선행 동작이 불필요한 경우:")
-        print("  python scripts/qa_cli.py set skip_precondition true")
+        print("  선행 동작을 제거하려면:")
+        print("  python scripts/qa_cli.py set precondition none")
         return 1
 
     key = args[0]
@@ -798,9 +793,18 @@ def cmd_set(args):
         print(f"유효한 키: {valid_keys}")
         return 1
 
-    if key in ("skip_github", "skip_precondition"):
+    if key == "skip_precondition":
+        print("[INFO] skip_precondition은 더 이상 필요하지 않습니다. precondition 미설정 시 자동으로 '선행 동작 없음'으로 처리됩니다.")
+        value = value.lower() in ("true", "1", "yes")
+    elif key == "skip_github":
         value = value.lower() in ("true", "1", "yes")
     elif key == "precondition":
+        if value.lower() == "none":
+            value = None
+            state["config"][key] = value
+            save_state(state)
+            print(f"[SET] config.precondition = None (선행 동작 없음)")
+            return 0
         try:
             parsed = json.loads(value)
         except json.JSONDecodeError as e:
