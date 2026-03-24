@@ -440,6 +440,17 @@ def run_all_tests(test_plan_path=DEFAULT_TEST_PLAN_PATH, base_url=None, headless
     compare_func = load_compare_function()
     compare_records = []
 
+    # compare_with_reference 액션이 있는데 스크립트가 없으면 조기 경고
+    if compare_func is None:
+        has_compare = any(
+            act.get("action") == "compare_with_reference"
+            for tc in test_cases
+            for act in tc.get("actions", [])
+        )
+        if has_compare:
+            print("[WARN] compare_screenshot.py를 로드할 수 없습니다. compare_with_reference 액션은 실패합니다.")
+            print(f"  경로: .cursor/skills/qa-automation/scripts/compare_screenshot.py")
+
     summary = {"total": 0, "passed": 0, "failed": 0, "skipped": 0, "errors": 0}
     category_summary = {
         cat: {"total": 0, "passed": 0, "failed": 0, "skipped": 0, "errors": 0} for cat in SUPPORTED_CATEGORIES
