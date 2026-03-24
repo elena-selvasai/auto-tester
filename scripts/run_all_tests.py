@@ -43,6 +43,9 @@ BOOLEAN_ATTRIBUTES = {
     "loop", "muted", "open", "reversed", "default",
 }
 
+MAX_RETRIES = 2
+RETRY_TIMEOUT_MULTIPLIER = 2
+
 
 def load_compare_function():
     """Load compare_screenshot function from shared script if available."""
@@ -345,59 +348,76 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
     raise ValueError(f"{tc_id}.actions[{action_index}]: 지원하지 않는 action '{action_type}'")
 
 
+def _capture_error_screenshot(page, tc_id, execution_stage, screenshots):
+    """Capture error screenshot and append to screenshots list."""
+    suffix = "precondition_error" if execution_stage == "precondition" else "error"
+    error_shot = OUTPUT_DIR / f"screenshot_{tc_id}_{suffix}.png"
+    try:
+        page.screenshot(path=str(error_shot))
+        screenshots.append(str(error_shot))
+    except PlaywrightError:
+        pass
+
+
 def execute_test_case(page, tc, base_url, compare_func, compare_records, global_precondition=None):
-    """Execute one test case and return status/message/elapsed/screenshots."""
+    """Execute one test case with retry on timeout errors."""
     tc_id = tc.get("tc_id", "UNKNOWN")
     actions = tc.get("actions", [])
     if not isinstance(actions, list) or len(actions) == 0:
         return "skipped", "actions가 비어 있어 실행을 건너뜀", 0, []
 
-    start_time = time.time()
-    screenshots = []
-    execution_stage = "actions"
-    try:
-        action_messages = []
+    last_status, last_message, last_elapsed, last_screenshots = "failed", "", 0, []
 
-        precondition = merge_preconditions(global_precondition, tc.get("precondition"))
-        if precondition is not None:
-            execution_stage = "precondition"
-            precondition_messages, precondition_screenshots = run_precondition(
-                page,
-                tc_id,
-                precondition,
-                base_url,
-                compare_func,
-                compare_records,
-            )
-            screenshots.extend(precondition_screenshots)
-            if precondition_messages:
-                action_messages.append("precondition: ok")
-
+    for attempt in range(1 + MAX_RETRIES):
+        start_time = time.time()
+        screenshots = []
         execution_stage = "actions"
-        sequence_messages, sequence_screenshots = execute_action_sequence(
-            page,
-            tc_id,
-            actions,
-            base_url,
-            compare_func,
-            compare_records,
-        )
-        action_messages.extend(sequence_messages)
-        screenshots.extend(sequence_screenshots)
-        elapsed_ms = int((time.time() - start_time) * 1000)
-        return "passed", "; ".join(action_messages[-3:]), elapsed_ms, screenshots
-    except (PlaywrightTimeoutError, PlaywrightError, AssertionError, ValueError, RuntimeError, TypeError, AttributeError) as exc:
-        screenshot_name = f"screenshot_{tc_id}_precondition_error.png" if execution_stage == "precondition" else f"screenshot_{tc_id}_error.png"
-        error_shot = OUTPUT_DIR / screenshot_name
         try:
-            page.screenshot(path=str(error_shot))
-            screenshots.append(str(error_shot))
-        except PlaywrightError:
-            pass
-        elapsed_ms = int((time.time() - start_time) * 1000)
-        if execution_stage == "precondition":
-            return "failed", f"precondition failed: {exc}", elapsed_ms, screenshots
-        return "failed", str(exc), elapsed_ms, screenshots
+            action_messages = []
+
+            precondition = merge_preconditions(global_precondition, tc.get("precondition"))
+            if precondition is not None:
+                execution_stage = "precondition"
+                precondition_messages, precondition_screenshots = run_precondition(
+                    page, tc_id, precondition, base_url, compare_func, compare_records,
+                )
+                screenshots.extend(precondition_screenshots)
+                if precondition_messages:
+                    action_messages.append("precondition: ok")
+
+            execution_stage = "actions"
+            sequence_messages, sequence_screenshots = execute_action_sequence(
+                page, tc_id, actions, base_url, compare_func, compare_records,
+            )
+            action_messages.extend(sequence_messages)
+            screenshots.extend(sequence_screenshots)
+            elapsed_ms = int((time.time() - start_time) * 1000)
+            return "passed", "; ".join(action_messages), elapsed_ms, screenshots
+
+        except PlaywrightTimeoutError as exc:
+            elapsed_ms = int((time.time() - start_time) * 1000)
+            last_screenshots = screenshots
+            _capture_error_screenshot(page, tc_id, execution_stage, last_screenshots)
+            last_elapsed = elapsed_ms
+            if execution_stage == "precondition":
+                last_message = f"precondition failed: {exc}"
+            else:
+                last_message = str(exc)
+            if attempt < MAX_RETRIES:
+                wait_ms = 1000 * RETRY_TIMEOUT_MULTIPLIER ** (attempt + 1)
+                print(f"  [{tc_id}] 타임아웃 재시도 {attempt + 1}/{MAX_RETRIES} (대기 {wait_ms}ms)")
+                page.wait_for_timeout(wait_ms)
+                continue
+            last_status = "failed"
+            return last_status, last_message, last_elapsed, last_screenshots
+
+        except (PlaywrightError, AssertionError, ValueError, RuntimeError, TypeError, AttributeError) as exc:
+            elapsed_ms = int((time.time() - start_time) * 1000)
+            _capture_error_screenshot(page, tc_id, execution_stage, screenshots)
+            msg = f"precondition failed: {exc}" if execution_stage == "precondition" else str(exc)
+            return "failed", msg, elapsed_ms, screenshots
+
+    return last_status, last_message, last_elapsed, last_screenshots
 
 
 def run_all_tests(test_plan_path=DEFAULT_TEST_PLAN_PATH, base_url=None, headless=True, cli_precondition=None):
