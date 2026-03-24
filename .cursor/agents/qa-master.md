@@ -63,7 +63,7 @@ python scripts/qa_cli.py complete 2
 python scripts/qa_cli.py start 3
 ```
 
-Task로 `qa-executor` 위임: `outputs/test_plan.json의 테스트를 {테스트_URL}에서 실행해줘. 참조 이미지는 outputs/reference/, 구성 체크 리스트는 outputs/scenario_draft_source.md에 있어.`
+Task로 `qa-executor` 위임: `outputs/test_plan.json의 테스트를 {테스트_URL}에서 실행해줘. 1차 실행은 python scripts/run_all_tests.py --base-url "{테스트_URL}"로 수행하고, 실패 TC는 agent-browser CLI로 DOM 분석·재검증해줘. 참조 이미지는 outputs/reference/, 구성 체크 리스트는 outputs/scenario_draft_source.md에 있어.`
 
 ```bash
 python scripts/qa_cli.py complete 3
