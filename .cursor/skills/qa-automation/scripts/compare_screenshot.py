@@ -55,7 +55,7 @@ def compare_screenshot(reference_path, actual_path, threshold=10, diff_out_path=
         except Exception:
             pass
 
-    return {"match": match, "score": int(score), "threshold": threshold, "diff_path": diff_path}
+    return {"match": bool(match), "score": int(score), "threshold": threshold, "diff_path": diff_path}
 
 
 def main():

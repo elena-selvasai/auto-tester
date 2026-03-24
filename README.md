@@ -39,7 +39,7 @@ Phase 0: 사전 검증 (GitHub CLI, 테스트 URL)
   ↓ [GATE]
 Phase 1: 문서 분석 → doc-analyst → scenario_draft.md + reference/
   ↓ [GATE: scenario_draft.md 필요]
-Phase 2: 테스트 설계 → test-architect → test_plan.json (5개 카테고리)
+Phase 2: 테스트 설계 → 스켈레톤 생성 + test-architect ×5 병렬 → test_plan.json
   ↓ [GATE: test_plan.json 필요]
 Phase 3: 테스트 실행 → qa-executor → test_result.json + screenshot_*.png
   ↓ [GATE: test_result.json 필요]
@@ -76,8 +76,12 @@ python .cursor/skills/qa-automation/scripts/extract_document.py inputs/ --output
 #   (outputs/scenario_draft.md 없으면 complete 명령이 거부됩니다)
 python scripts/qa_cli.py complete 1
 
-# Phase 2: 테스트 설계 (AI가 test_plan.json 생성)
+# Phase 2: 테스트 설계 (스켈레톤 → 병렬 보완 → 병합)
 python scripts/qa_cli.py start 2
+python scripts/generate_test_skeleton.py --output-dir outputs
+# AI가 5개 카테고리를 병렬로 보완 → outputs/test_plan_{category}.json
+python scripts/merge_test_plans.py --output-dir outputs
+python .cursor/skills/qa-automation/scripts/validate_json.py outputs/test_plan.json
 python scripts/qa_cli.py complete 2
 
 # Phase 3: 테스트 실행

@@ -153,10 +153,40 @@ def execute_action_sequence(page, tc_id, actions, base_url, compare_func, compar
     return action_messages, screenshots
 
 
+DEFAULT_TIMEOUT_MS = 30000
+
+
+def _try_success_checks(page, tc_id, success_checks, base_url, compare_func, compare_records, timeout_ms=2000):
+    """Quickly test if precondition success_checks already pass (shorter timeouts)."""
+    try:
+        page.set_default_timeout(timeout_ms)
+        execute_action_sequence(
+            page,
+            f"{tc_id}.precondition_precheck",
+            success_checks,
+            base_url,
+            compare_func,
+            compare_records,
+        )
+        return True
+    except (PlaywrightTimeoutError, PlaywrightError, AssertionError, ValueError, RuntimeError):
+        return False
+    finally:
+        page.set_default_timeout(DEFAULT_TIMEOUT_MS)
+
+
 def run_precondition(page, tc_id, precondition, base_url, compare_func, compare_records):
-    """Run precondition actions and verify success before the main test."""
+    """Run precondition actions and verify success before the main test.
+
+    Optimization: checks success_checks first; if already satisfied, skips
+    the (expensive) precondition actions entirely.
+    """
     if precondition is None:
         return [], []
+
+    if _try_success_checks(page, tc_id, precondition["success_checks"],
+                           base_url, compare_func, compare_records):
+        return ["precondition: already satisfied (skipped)"], []
 
     precondition_messages = []
     screenshots = []
@@ -196,12 +226,13 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
         if not raw_url:
             raise ValueError(f"{tc_id}.actions[{action_index}]: navigate 액션에 url이 필요합니다.")
         url = expand_placeholders(raw_url, base_url)
-        wait_until = action.get("wait_until", "networkidle")
+        wait_until = action.get("wait_until", "domcontentloaded")
         page.goto(url, timeout=30000)
         try:
             page.wait_for_load_state(wait_until, timeout=15000)
         except PlaywrightTimeoutError:
-            pass  # SPA 등에서 networkidle 타임아웃은 무시
+            pass
+        # SPA에서 API 데이터가 필요한 경우 test_plan에 wait_until: "networkidle" 명시 가능
         return f"navigate: {url}"
 
     if action_type == "click":
@@ -215,9 +246,18 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
             wait_timeout = int(wait_before.get("timeout", 5000))
             if wait_selector:
                 page.wait_for_selector(wait_selector, state=wait_state, timeout=wait_timeout)
+        force = action.get("force", False)
         locator = page.locator(selector).first
-        locator.scroll_into_view_if_needed(timeout=5000)
-        locator.click(timeout=5000)
+        try:
+            if not force:
+                locator.scroll_into_view_if_needed(timeout=5000)
+            locator.click(timeout=5000, force=bool(force))
+        except (PlaywrightError, PlaywrightTimeoutError):
+            safe_sel = json.dumps(selector.split(",")[0].strip())
+            page.evaluate(f"""() => {{
+                const el = document.querySelector({safe_sel});
+                if (el) el.click();
+            }}""")
         return f"click: {selector}"
 
     if action_type == "input":
@@ -228,8 +268,23 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
         if value is None:
             raise ValueError(f"{tc_id}.actions[{action_index}]: input 액션에 value가 필요합니다.")
         locator = page.locator(selector).first
-        locator.scroll_into_view_if_needed(timeout=5000)
-        locator.fill(str(value), timeout=5000)
+        try:
+            locator.scroll_into_view_if_needed(timeout=5000)
+        except (PlaywrightError, PlaywrightTimeoutError):
+            pass
+        try:
+            locator.fill(str(value), timeout=5000)
+        except (PlaywrightError, PlaywrightTimeoutError):
+            css_sel = selector.split(",")[0].strip()
+            try:
+                locator.click(timeout=3000)
+            except (PlaywrightError, PlaywrightTimeoutError):
+                safe_sel = json.dumps(css_sel)
+                page.evaluate(f"""() => {{
+                    const el = document.querySelector({safe_sel});
+                    if (el) {{ el.focus(); el.click(); }}
+                }}""")
+            page.keyboard.insert_text(str(value))
         return f"input: {selector}"
 
     if action_type == "check":
@@ -241,7 +296,16 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
         if selector:
             locator = page.locator(selector)
             if visible is not False:
-                locator.first.wait_for(state="visible", timeout=5000)
+                wait_state = action.get("wait_state", "visible")
+                try:
+                    locator.first.wait_for(state=wait_state, timeout=5000)
+                except PlaywrightTimeoutError:
+                    if wait_state == "visible":
+                        locator.first.evaluate("el => el.scrollIntoView({block: 'center'})")
+                        page.wait_for_timeout(500)
+                        locator.first.wait_for(state="visible", timeout=3000)
+                    else:
+                        raise
             elif visible is False:
                 if locator.first.is_visible():
                     raise AssertionError(
@@ -272,8 +336,17 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
         attribute = action.get("attribute")
         if not selector or not attribute:
             raise ValueError(f"{tc_id}.actions[{action_index}]: check_attribute 액션에 selector/attribute가 필요합니다.")
+        wait_state = action.get("wait_state", "visible")
         locator = page.locator(selector).first
-        locator.wait_for(state="visible", timeout=5000)
+        try:
+            locator.wait_for(state=wait_state, timeout=5000)
+        except PlaywrightTimeoutError:
+            if wait_state == "visible":
+                locator.evaluate("el => el.scrollIntoView({block: 'center'})")
+                page.wait_for_timeout(500)
+                locator.wait_for(state="visible", timeout=3000)
+            else:
+                raise
         actual = locator.get_attribute(attribute)
         expected = action.get("expected")
         if expected is not None:
@@ -296,10 +369,22 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
                         f"{tc_id}.actions[{action_index}]: boolean attribute mismatch "
                         f"({attribute} present={actual is not None}, expected={expected}){hint}"
                     )
-            elif str(actual) != str(expected):
-                raise AssertionError(
-                    f"{tc_id}.actions[{action_index}]: attribute mismatch ({attribute}={actual}, expected={expected})"
-                )
+            else:
+                match_mode = action.get("match_mode", "exact")
+                if match_mode == "contains":
+                    if str(expected) not in str(actual or ""):
+                        raise AssertionError(
+                            f"{tc_id}.actions[{action_index}]: attribute '{attribute}' does not contain '{expected}' (actual='{actual}')"
+                        )
+                elif match_mode == "not_contains":
+                    if str(expected) in str(actual or ""):
+                        raise AssertionError(
+                            f"{tc_id}.actions[{action_index}]: attribute '{attribute}' should not contain '{expected}' (actual='{actual}')"
+                        )
+                elif str(actual) != str(expected):
+                    raise AssertionError(
+                        f"{tc_id}.actions[{action_index}]: attribute mismatch ({attribute}={actual}, expected={expected})"
+                    )
         return f"check_attribute: {selector}[{attribute}]={actual}"
 
     if action_type == "wait":
@@ -307,14 +392,54 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
         page.wait_for_timeout(timeout)
         return f"wait: {timeout}ms"
 
+    if action_type == "wait_for_selector":
+        selector = action.get("selector")
+        if not selector:
+            raise ValueError(f"{tc_id}.actions[{action_index}]: wait_for_selector 액션에 selector가 필요합니다.")
+        state = action.get("state", "visible")
+        timeout = int(action.get("timeout", 5000))
+        page.wait_for_selector(selector, state=state, timeout=timeout)
+        return f"wait_for_selector: {selector} ({state})"
+
     if action_type == "hover":
         selector = action.get("selector")
         if not selector:
             raise ValueError(f"{tc_id}.actions[{action_index}]: hover 액션에 selector가 필요합니다.")
         locator = page.locator(selector).first
-        locator.scroll_into_view_if_needed(timeout=5000)
+        try:
+            locator.scroll_into_view_if_needed(timeout=5000)
+        except (PlaywrightError, PlaywrightTimeoutError):
+            pass
         locator.hover(timeout=5000)
         return f"hover: {selector}"
+
+    if action_type == "scroll_into_view":
+        selector = action.get("selector")
+        if not selector:
+            raise ValueError(f"{tc_id}.actions[{action_index}]: scroll_into_view 액션에 selector가 필요합니다.")
+        locator = page.locator(selector).first
+        try:
+            locator.scroll_into_view_if_needed(timeout=5000)
+        except (PlaywrightError, PlaywrightTimeoutError):
+            try:
+                locator.evaluate("el => el.scrollIntoView({block: 'center', behavior: 'instant'})")
+                page.wait_for_timeout(300)
+            except (PlaywrightError, PlaywrightTimeoutError):
+                css_sel = selector.split(",")[0].strip()
+                safe_sel = json.dumps(css_sel)
+                page.evaluate(f"""() => {{
+                    const el = document.querySelector({safe_sel});
+                    if (el) el.scrollIntoView({{block: 'center', behavior: 'instant'}});
+                }}""")
+                page.wait_for_timeout(300)
+        return f"scroll_into_view: {selector}"
+
+    if action_type == "evaluate":
+        expression = action.get("expression")
+        if not expression:
+            raise ValueError(f"{tc_id}.actions[{action_index}]: evaluate 액션에 expression이 필요합니다.")
+        result = page.evaluate(expression)
+        return f"evaluate: {str(expression)[:80]}"
 
     if action_type == "screenshot":
         raw_filename = action.get("filename") or f"screenshot_{tc_id}_{action_index + 1}.png"

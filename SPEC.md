@@ -55,11 +55,16 @@ python scripts/qa_cli.py resume    # 중단 지점 재개
 
 ### Phase 2: 테스트 설계
 
-- `scenario_draft.md`를 JSON 테스트 플랜으로 변환
+3단계로 수행됩니다:
+
+1. **스켈레톤 생성** (Python, ~2초): `scripts/generate_test_skeleton.py`가 `extract_result.json` + `reference/` 이미지 + `scenario_draft_source.md` 구성 체크리스트를 분석하여 `test_plan_skeleton.json` 자동 생성
+2. **5개 카테고리 병렬 위임**: 스켈레톤의 카테고리별 TC를 5개 병렬 Task(test-architect)에 분배, 각 Task가 `TODO_SELECTOR`를 실제 CSS 선택자로 교체하고 액션을 구체화하여 `test_plan_{카테고리}.json` 생성
+3. **병합**: `scripts/merge_test_plans.py`가 5개 카테고리 파일을 단일 `test_plan.json`으로 병합
+
 - 5개 카테고리: `basic_function`, `button_state`, `navigation`, `edge_case`, `accessibility`
 - `validate_json.py`로 유효성 검증
-- 산출물: `test_plan.json`
-- 검증 게이트: Phase 1 completed + `scenario_draft.md` 존재 필요
+- 산출물: `test_plan.json` (중간 산출물: `test_plan_skeleton.json`, `test_plan_{카테고리}.json`)
+- 검증 게이트: Phase 1 completed + `extract_result.json` 존재 필요
 
 ### Phase 3: 테스트 실행
 
@@ -125,7 +130,9 @@ python scripts/qa_cli.py start 2
 | `extract_result.json` | 1 | 문서 추출 결과 |
 | `scenario_draft_source.md` | 1 | 추출 요약 + 구성 체크 |
 | `reference/*.png` | 1 | 기획서 참조 이미지 |
-| `test_plan.json` | 2 | JSON 테스트 플랜 |
+| `test_plan_skeleton.json` | 2 | 스켈레톤 테스트 플랜 (자동 생성) |
+| `test_plan_{category}.json` | 2 | 카테고리별 보완된 테스트 플랜 |
+| `test_plan.json` | 2 | 병합된 최종 JSON 테스트 플랜 |
 | `test_result.json` | 3 | 테스트 실행 결과 |
 | `screenshot_TC_*.png` | 3 | 테스트 스크린샷 |
 | `REPORT.md` | 4 | 최종 리포트 |
@@ -150,7 +157,7 @@ python scripts/qa_cli.py start 2
 
 `base_url`은 항상 `"${base_url}"` 플레이스홀더로 설정합니다.
 
-지원 액션: `navigate`, `click`, `input`, `check`, `wait`, `screenshot`, `hover`, `check_attribute`, `compare_with_reference`
+지원 액션: `navigate`, `click`, `input`, `check`, `wait`, `wait_for_selector`, `screenshot`, `hover`, `check_attribute`, `compare_with_reference`, `evaluate`, `scroll_into_view`
 
 선택적으로 루트 또는 각 테스트 케이스에 `precondition` 블록을 둘 수 있습니다:
 

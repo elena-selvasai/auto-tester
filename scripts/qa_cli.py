@@ -67,7 +67,7 @@ PHASE_META = {
         "name": "문서 분석",
         "required_before": [0],
         "required_inputs": [],
-        "produces_required": ["outputs/scenario_draft.md"],
+        "produces_required": ["outputs/scenario_draft.md", "outputs/extract_result.json"],
         "produces": [
             "outputs/scenario_draft.md",
             "outputs/extract_result.json",
@@ -78,9 +78,12 @@ PHASE_META = {
     2: {
         "name": "테스트 설계",
         "required_before": [1],
-        "required_inputs": ["outputs/scenario_draft.md"],
+        "required_inputs": ["outputs/extract_result.json"],
         "produces_required": ["outputs/test_plan.json"],
-        "produces": ["outputs/test_plan.json"],
+        "produces": [
+            "outputs/test_plan_skeleton.json",
+            "outputs/test_plan.json",
+        ],
         "optional": False,
     },
     3: {

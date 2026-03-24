@@ -47,6 +47,10 @@ python .cursor/skills/qa-automation/scripts/extract_document.py inputs/ --output
 python .cursor/skills/qa-automation/scripts/compare_screenshot.py <ref.png> <actual.png> [--threshold 10]
 # JSON 검증
 python .cursor/skills/qa-automation/scripts/validate_json.py outputs/test_plan.json
+# 스켈레톤 생성
+python scripts/generate_test_skeleton.py [--output-dir outputs]
+# 카테고리별 병합
+python scripts/merge_test_plans.py [--output-dir outputs] [--skeleton path]
 ```
 
 ## 에러 대응

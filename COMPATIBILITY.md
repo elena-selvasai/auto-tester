@@ -58,6 +58,8 @@ python .cursor/skills/qa-automation/scripts/extract_document.py inputs/ --output
 python .cursor/skills/qa-automation/scripts/validate_json.py outputs/test_plan.json
 python .cursor/skills/qa-automation/scripts/compare_screenshot.py ref.png screenshot.png
 python scripts/qa_cli.py status
+python scripts/generate_test_skeleton.py --output-dir outputs
+python scripts/merge_test_plans.py --output-dir outputs
 ```
 
 ## 빠른 시작

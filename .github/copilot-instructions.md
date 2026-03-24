@@ -25,16 +25,20 @@ python scripts/qa_cli.py set github_repo "owner/repo"
 python .cursor/skills/qa-automation/scripts/extract_document.py inputs/ --output outputs
 python .cursor/skills/qa-automation/scripts/compare_screenshot.py <ref.png> <actual.png> [--threshold 10]
 python .cursor/skills/qa-automation/scripts/validate_json.py outputs/test_plan.json
+python scripts/generate_test_skeleton.py [--output-dir outputs]
+python scripts/merge_test_plans.py [--output-dir outputs]
 ```
 
 ## Architecture
 
 ```
 scripts/
-  qa_cli.py                # Phase 검증 게이트 + YAML 상태 DB
-  run_all_tests.py         # Action 기반 테스트 러너
-  generate_report.py       # REPORT.md 생성
-  create_github_issues.py  # GitHub 이슈 자동 등록
+  qa_cli.py                  # Phase 검증 게이트 + YAML 상태 DB
+  run_all_tests.py           # Action 기반 테스트 러너
+  generate_test_skeleton.py  # extract_result → test_plan_skeleton.json
+  merge_test_plans.py        # 카테고리별 JSON → test_plan.json 병합
+  generate_report.py         # REPORT.md 생성
+  create_github_issues.py    # GitHub 이슈 자동 등록
 .cursor/skills/qa-automation/scripts/  # 공유 Python 스크립트
 .cursor/agents/ / .claude/agents/      # AI 에이전트 정의 (구조 동일)
 outputs/                               # 산출물 + qa_state.yaml
