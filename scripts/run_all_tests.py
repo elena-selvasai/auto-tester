@@ -420,7 +420,7 @@ def execute_test_case(page, tc, base_url, compare_func, compare_records, global_
     return last_status, last_message, last_elapsed, last_screenshots
 
 
-def run_all_tests(test_plan_path=DEFAULT_TEST_PLAN_PATH, base_url=None, headless=True, cli_precondition=None):
+def run_all_tests(test_plan_path=DEFAULT_TEST_PLAN_PATH, base_url=None, headless=True, cli_precondition=None, tc_filter=None):
     """Run all test cases in test_plan.json."""
     ensure_outputs_dir()
     test_plan_path = Path(test_plan_path)
@@ -440,7 +440,7 @@ def run_all_tests(test_plan_path=DEFAULT_TEST_PLAN_PATH, base_url=None, headless
     compare_func = load_compare_function()
     compare_records = []
 
-    summary = {"total": len(test_cases), "passed": 0, "failed": 0, "skipped": 0, "errors": 0}
+    summary = {"total": 0, "passed": 0, "failed": 0, "skipped": 0, "errors": 0}
     category_summary = {
         cat: {"total": 0, "passed": 0, "failed": 0, "skipped": 0, "errors": 0} for cat in SUPPORTED_CATEGORIES
     }
@@ -453,6 +453,12 @@ def run_all_tests(test_plan_path=DEFAULT_TEST_PLAN_PATH, base_url=None, headless
 
         for tc in test_cases:
             tc_id = tc.get("tc_id", "")
+
+            # TC 필터링: --tc 옵션이 있으면 해당 TC만 실행
+            if tc_filter and tc_id not in tc_filter:
+                continue
+
+            summary["total"] += 1
             name = tc.get("name", "")
             category = tc.get("category", "basic_function")
             priority = tc.get("priority", "medium")
@@ -521,6 +527,7 @@ def main():
     parser.add_argument("--base-url", default=None, help="Base URL override")
     parser.add_argument("--headed", action="store_true", help="Run browser in headed mode")
     parser.add_argument("--precondition", default=None, help="Precondition JSON string (overrides test_plan precondition)")
+    parser.add_argument("--tc", default=None, help="Comma-separated TC IDs to run (e.g. TC_003,TC_015)")
     args = parser.parse_args()
 
     cli_precondition = None
@@ -531,11 +538,16 @@ def main():
             print(f"ERROR: --precondition 인자가 유효한 JSON이 아닙니다: {e}")
             sys.exit(1)
 
+    tc_filter = None
+    if args.tc:
+        tc_filter = [t.strip() for t in args.tc.split(",")]
+
     run_all_tests(
         test_plan_path=args.test_plan,
         base_url=args.base_url,
         headless=not args.headed,
         cli_precondition=cli_precondition,
+        tc_filter=tc_filter,
     )
 
 
