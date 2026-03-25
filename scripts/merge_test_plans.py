@@ -22,6 +22,19 @@ import os
 import re
 import sys
 
+try:
+    import yaml
+    def _load_test_url_from_state(output_dir: str) -> str:
+        state_path = os.path.join(output_dir, "qa_state.yaml")
+        if os.path.exists(state_path):
+            with open(state_path, encoding="utf-8") as f:
+                state = yaml.safe_load(f)
+            return state.get("config", {}).get("test_url") or ""
+        return ""
+except ImportError:
+    def _load_test_url_from_state(output_dir: str) -> str:
+        return ""
+
 
 CATEGORIES = [
     "basic_function",
@@ -128,9 +141,11 @@ def main():
         for err in errors[:10]:
             print(f"  - {err}", file=sys.stderr)
 
+    test_url = _load_test_url_from_state(args.output_dir)
     merged = {
         "test_plan_id": base["test_plan_id"],
-        "base_url": base["base_url"],
+        "test_url": test_url,
+        "base_url": test_url if test_url else base["base_url"],
     }
     if base.get("precondition"):
         merged["precondition"] = base["precondition"]

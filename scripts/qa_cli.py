@@ -249,14 +249,100 @@ def validate_github_auth():
     return True, None
 
 
+def _check_url_reachable(test_url):
+    """test_url에 실제 HTTP 접속 가능 여부 확인."""
+    import urllib.request
+    import urllib.error
+    try:
+        req = urllib.request.Request(test_url, method="GET")
+        req.add_header("User-Agent", "QA-CLI/1.0")
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            if resp.status >= 400:
+                return False, f"URL 접속 실패: HTTP {resp.status}"
+        return True, None
+    except urllib.error.HTTPError as e:
+        return False, f"URL 접속 실패: HTTP {e.code} {e.reason}"
+    except urllib.error.URLError as e:
+        return False, f"URL 접속 불가: {e.reason}\n서버가 실행 중인지 확인하세요."
+    except Exception as e:
+        return False, f"URL 접속 오류: {e}"
+
+
+def _check_precondition_live(test_url, precondition):
+    """Playwright로 test_url 접속 후 precondition 실행 검증.
+
+    precondition의 actions를 실행하고 success_checks가 통과하는지 확인합니다.
+    Playwright가 설치되지 않았으면 건너뜁니다.
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+        from playwright.sync_api import TimeoutError as PwTimeout
+    except ImportError:
+        print("[WARN] Playwright가 설치되지 않아 precondition 실시간 검증을 건너뜁니다.")
+        return True, None
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_context(viewport={"width": 1280, "height": 800}).new_page()
+            page.goto(test_url, timeout=20000, wait_until="domcontentloaded")
+
+            # actions 실행
+            for i, act in enumerate(precondition.get("actions", [])):
+                action = act.get("action", "")
+                selector = act.get("selector") or act.get("target", "")
+                value = act.get("value", "")
+                if action == "click" and selector:
+                    page.locator(selector).first.click(timeout=10000)
+                elif action == "input" and selector:
+                    page.locator(selector).first.fill(value, timeout=10000)
+                elif action == "navigate":
+                    url = act.get("url") or value
+                    if url:
+                        page.goto(url, timeout=20000, wait_until="domcontentloaded")
+                elif action == "wait":
+                    ms = int(value) if value else 1000
+                    page.wait_for_timeout(ms)
+
+            # success_checks 검증
+            for i, check in enumerate(precondition.get("success_checks", [])):
+                selector = check.get("selector") or check.get("target", "")
+                if selector:
+                    page.wait_for_selector(selector, timeout=10000)
+
+            browser.close()
+            return True, None
+    except PwTimeout as e:
+        msg = str(e)
+        # 실패한 선택자 추출
+        return False, (
+            f"Precondition 실시간 검증 실패 (타임아웃):\n  {msg}\n"
+            "선택자가 실제 앱의 DOM과 일치하는지 확인하세요."
+        )
+    except Exception as e:
+        return False, f"Precondition 실시간 검증 오류: {e}"
+
+
 def validate_phase0_config(state):
-    """Phase 0 완료 전 필수 설정 검증."""
+    """Phase 0 완료 전 필수 설정 검증.
+
+    1) test_url 형식 검증
+    2) test_url 실제 접속 가능 여부 (HTTP)
+    3) precondition 형식 검증
+    4) precondition 실시간 검증 (Playwright)
+    5) GitHub 설정 검증
+    """
     config = state.get("config", {})
     test_url = config.get("test_url") or ""
     if not (isinstance(test_url, str) and test_url.startswith(("http://", "https://"))):
         return False, "config.test_url 이 유효하지 않습니다. 예: python scripts/qa_cli.py set test_url http://localhost:3000"
 
-    # precondition 확인: 미설정(None)이면 "선행 동작 없음"으로 간주하여 통과
+    # test_url 실제 접속 확인
+    ok, reason = _check_url_reachable(test_url)
+    if not ok:
+        return False, reason
+
+    # precondition 형식 확인
     precondition = config.get("precondition")
     if precondition is not None and not isinstance(precondition, dict):
         return False, (
@@ -265,6 +351,12 @@ def validate_phase0_config(state):
             "선행 동작을 제거하려면:\n"
             "  python scripts/qa_cli.py set precondition none"
         )
+
+    # precondition 실시간 검증 (설정된 경우)
+    if precondition is not None and isinstance(precondition, dict):
+        ok, reason = _check_precondition_live(test_url, precondition)
+        if not ok:
+            return False, reason
 
     skip_github = bool(config.get("skip_github", False))
     github_repo = config.get("github_repo") or ""

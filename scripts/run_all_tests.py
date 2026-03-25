@@ -14,6 +14,7 @@ import importlib.util
 import json
 import sys
 import time
+from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
@@ -44,7 +45,8 @@ BOOLEAN_ATTRIBUTES = {
 }
 
 MAX_RETRIES = 2
-RETRY_TIMEOUT_MULTIPLIER = 2
+RETRY_TIMEOUT_MULTIPLIER = 1.5
+DEFAULT_WORKERS = 4
 
 
 def load_compare_function():
@@ -75,12 +77,15 @@ def resolve_path(value, default_to_outputs=False):
 
 
 def resolve_base_url(test_plan, cli_base_url=None):
-    """Resolve base URL from CLI arg > test_plan.base_url > test_plan.meta.base_url."""
+    """Resolve base URL from CLI arg > test_plan.base_url > test_plan.test_url > test_plan.meta.base_url."""
     if cli_base_url:
         return cli_base_url
     base = test_plan.get("base_url")
     if isinstance(base, str) and base and base != "${base_url}":
         return base
+    test_url = test_plan.get("test_url")
+    if isinstance(test_url, str) and test_url:
+        return test_url
     meta_base = test_plan.get("meta", {}).get("base_url")
     if isinstance(meta_base, str) and meta_base:
         return meta_base
@@ -153,7 +158,7 @@ def execute_action_sequence(page, tc_id, actions, base_url, compare_func, compar
     return action_messages, screenshots
 
 
-DEFAULT_TIMEOUT_MS = 30000
+DEFAULT_TIMEOUT_MS = 10000
 
 
 def _try_success_checks(page, tc_id, success_checks, base_url, compare_func, compare_records, timeout_ms=2000):
@@ -227,9 +232,9 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
             raise ValueError(f"{tc_id}.actions[{action_index}]: navigate 액션에 url이 필요합니다.")
         url = expand_placeholders(raw_url, base_url)
         wait_until = action.get("wait_until", "domcontentloaded")
-        page.goto(url, timeout=30000)
+        page.goto(url, timeout=15000)
         try:
-            page.wait_for_load_state(wait_until, timeout=15000)
+            page.wait_for_load_state(wait_until, timeout=8000)
         except PlaywrightTimeoutError:
             pass
         # SPA에서 API 데이터가 필요한 경우 test_plan에 wait_until: "networkidle" 명시 가능
@@ -250,8 +255,8 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
         locator = page.locator(selector).first
         try:
             if not force:
-                locator.scroll_into_view_if_needed(timeout=5000)
-            locator.click(timeout=5000, force=bool(force))
+                locator.scroll_into_view_if_needed(timeout=3000)
+            locator.click(timeout=3000, force=bool(force))
         except (PlaywrightError, PlaywrightTimeoutError):
             safe_sel = json.dumps(selector.split(",")[0].strip())
             page.evaluate(f"""() => {{
@@ -269,15 +274,15 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
             raise ValueError(f"{tc_id}.actions[{action_index}]: input 액션에 value가 필요합니다.")
         locator = page.locator(selector).first
         try:
-            locator.scroll_into_view_if_needed(timeout=5000)
+            locator.scroll_into_view_if_needed(timeout=3000)
         except (PlaywrightError, PlaywrightTimeoutError):
             pass
         try:
-            locator.fill(str(value), timeout=5000)
+            locator.fill(str(value), timeout=3000)
         except (PlaywrightError, PlaywrightTimeoutError):
             css_sel = selector.split(",")[0].strip()
             try:
-                locator.click(timeout=3000)
+                locator.click(timeout=2000)
             except (PlaywrightError, PlaywrightTimeoutError):
                 safe_sel = json.dumps(css_sel)
                 page.evaluate(f"""() => {{
@@ -298,12 +303,12 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
             if visible is not False:
                 wait_state = action.get("wait_state", "visible")
                 try:
-                    locator.first.wait_for(state=wait_state, timeout=5000)
+                    locator.first.wait_for(state=wait_state, timeout=3000)
                 except PlaywrightTimeoutError:
                     if wait_state == "visible":
                         locator.first.evaluate("el => el.scrollIntoView({block: 'center'})")
                         page.wait_for_timeout(500)
-                        locator.first.wait_for(state="visible", timeout=3000)
+                        locator.first.wait_for(state="visible", timeout=2000)
                     else:
                         raise
             elif visible is False:
@@ -317,7 +322,7 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
                     f"{tc_id}.actions[{action_index}]: selector count mismatch ({count} != {expected_count})"
                 )
             if expected is not None:
-                text_sample = locator.first.inner_text(timeout=3000)
+                text_sample = locator.first.inner_text(timeout=2000)
                 if str(expected) not in text_sample:
                     raise AssertionError(
                         f"{tc_id}.actions[{action_index}]: expected text '{expected}' not found in '{text_sample}'"
@@ -339,12 +344,12 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
         wait_state = action.get("wait_state", "visible")
         locator = page.locator(selector).first
         try:
-            locator.wait_for(state=wait_state, timeout=5000)
+            locator.wait_for(state=wait_state, timeout=3000)
         except PlaywrightTimeoutError:
             if wait_state == "visible":
                 locator.evaluate("el => el.scrollIntoView({block: 'center'})")
                 page.wait_for_timeout(500)
-                locator.wait_for(state="visible", timeout=3000)
+                locator.wait_for(state="visible", timeout=2000)
             else:
                 raise
         actual = locator.get_attribute(attribute)
@@ -405,12 +410,26 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
         selector = action.get("selector")
         if not selector:
             raise ValueError(f"{tc_id}.actions[{action_index}]: hover 액션에 selector가 필요합니다.")
+        force = action.get("force", False)
         locator = page.locator(selector).first
         try:
-            locator.scroll_into_view_if_needed(timeout=5000)
+            locator.scroll_into_view_if_needed(timeout=3000)
         except (PlaywrightError, PlaywrightTimeoutError):
             pass
-        locator.hover(timeout=5000)
+        try:
+            locator.hover(timeout=3000, force=bool(force))
+        except (PlaywrightError, PlaywrightTimeoutError):
+            # 요소가 overflow:hidden 내부 등으로 visible 불가 시 JS 이벤트로 대체
+            css_sel = selector.split(",")[0].strip()
+            safe_sel = json.dumps(css_sel)
+            page.evaluate(f"""() => {{
+                const el = document.querySelector({safe_sel});
+                if (el) {{
+                    el.dispatchEvent(new MouseEvent('mouseenter', {{bubbles: true, cancelable: true}}));
+                    el.dispatchEvent(new MouseEvent('mouseover', {{bubbles: true, cancelable: true}}));
+                }}
+            }}""")
+            page.wait_for_timeout(200)
         return f"hover: {selector}"
 
     if action_type == "scroll_into_view":
@@ -419,7 +438,7 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
             raise ValueError(f"{tc_id}.actions[{action_index}]: scroll_into_view 액션에 selector가 필요합니다.")
         locator = page.locator(selector).first
         try:
-            locator.scroll_into_view_if_needed(timeout=5000)
+            locator.scroll_into_view_if_needed(timeout=3000)
         except (PlaywrightError, PlaywrightTimeoutError):
             try:
                 locator.evaluate("el => el.scrollIntoView({block: 'center', behavior: 'instant'})")
@@ -433,6 +452,45 @@ def execute_action(page, tc_id, action, action_index, base_url, compare_func, co
                 }}""")
                 page.wait_for_timeout(300)
         return f"scroll_into_view: {selector}"
+
+    if action_type == "scroll_to_element":
+        selector = action.get("selector")
+        if not selector:
+            raise ValueError(f"{tc_id}.actions[{action_index}]: scroll_to_element 액션에 selector가 필요합니다.")
+        locator = page.locator(selector).first
+        try:
+            locator.scroll_into_view_if_needed(timeout=3000)
+            page.wait_for_timeout(300)
+        except (PlaywrightError, PlaywrightTimeoutError):
+            css_sel = selector.split(",")[0].strip()
+            safe_sel = json.dumps(css_sel)
+            page.evaluate(f"""() => {{
+                const el = document.querySelector({safe_sel});
+                if (el) el.scrollIntoView({{block: 'center', behavior: 'instant'}});
+            }}""")
+            page.wait_for_timeout(300)
+        return f"scroll_to_element: {selector}"
+
+    if action_type == "check_is_checked":
+        selector = action.get("selector")
+        if not selector:
+            raise ValueError(f"{tc_id}.actions[{action_index}]: check_is_checked 액션에 selector가 필요합니다.")
+        locator = page.locator(selector).first
+        try:
+            locator.wait_for(state="attached", timeout=3000)
+        except PlaywrightTimeoutError:
+            raise
+        actual_checked = locator.is_checked()
+        expected = action.get("expected")
+        if expected is not None:
+            expected_bool = str(expected).lower() == "true"
+            if actual_checked != expected_bool:
+                hint = "(체크되어야 하지만 체크되지 않음)" if expected_bool else "(체크되지 않아야 하지만 체크되어 있음)"
+                raise AssertionError(
+                    f"{tc_id}.actions[{action_index}]: check_is_checked mismatch "
+                    f"(actual={actual_checked}, expected={expected}) {hint}"
+                )
+        return f"check_is_checked: {selector} checked={actual_checked}"
 
     if action_type == "evaluate":
         expression = action.get("expression")
@@ -556,7 +614,79 @@ def execute_test_case(page, tc, base_url, compare_func, compare_records, global_
     return last_status, last_message, last_elapsed, last_screenshots
 
 
-def run_all_tests(test_plan_path=DEFAULT_TEST_PLAN_PATH, base_url=None, headless=True, cli_precondition=None, tc_filter=None):
+def _worker_run_batch(args):
+    """Worker process: 별도 Playwright 인스턴스에서 TC 배치를 실행합니다.
+
+    precondition_error 발생 시 즉시 중단하고 나머지 TC를 skipped 처리합니다.
+    """
+    tc_batch, base_url, headless, global_precondition = args
+    compare_func = load_compare_function()
+    compare_records = []
+    results = []
+    precondition_aborted = False
+    abort_tc_id = None
+    abort_message = None
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=headless)
+        context = browser.new_context(viewport={"width": 1280, "height": 800})
+        page = context.new_page()
+
+        for idx, tc in enumerate(tc_batch):
+            tc_id = tc.get("tc_id", "")
+            name = tc.get("name", "")
+            category = tc.get("category", "basic_function")
+            priority = tc.get("priority", "medium")
+            expected = tc.get("expected", "")
+
+            status, message, elapsed_ms, screenshots = execute_test_case(
+                page, tc, base_url, compare_func, compare_records,
+                global_precondition=global_precondition,
+            )
+
+            print(f"[{tc_id}] {name} -> {status.upper()}: {message}", flush=True)
+            result_entry = {
+                "tc_id": tc_id, "category": category, "name": name,
+                "status": status, "message": message, "expected": expected,
+                "priority": priority, "elapsed_ms": elapsed_ms,
+            }
+            if screenshots:
+                result_entry["screenshots"] = screenshots
+            results.append(result_entry)
+
+            # precondition_error 시 즉시 중단
+            if status == "failed" and message.startswith("precondition failed:"):
+                precondition_aborted = True
+                abort_tc_id = tc_id
+                abort_message = message
+                print(
+                    f"\n[ABORT] precondition_error 발생 — 테스트 실행 즉시 중단\n"
+                    f"  TC: {tc_id}\n"
+                    f"  원인: {message}\n"
+                    f"  → CSS 선택자가 실제 앱 DOM과 일치하는지 확인 후 재실행하세요.",
+                    flush=True,
+                )
+                # 나머지 TC를 skipped 처리
+                for remaining_tc in tc_batch[idx + 1:]:
+                    results.append({
+                        "tc_id": remaining_tc.get("tc_id", ""),
+                        "category": remaining_tc.get("category", "basic_function"),
+                        "name": remaining_tc.get("name", ""),
+                        "status": "skipped",
+                        "message": f"precondition_abort: {abort_tc_id}에서 precondition 실패로 중단됨",
+                        "expected": remaining_tc.get("expected", ""),
+                        "priority": remaining_tc.get("priority", "medium"),
+                        "elapsed_ms": 0,
+                    })
+                break
+
+        browser.close()
+
+    return results, compare_records, precondition_aborted, abort_tc_id, abort_message
+
+
+def run_all_tests(test_plan_path=DEFAULT_TEST_PLAN_PATH, base_url=None, headless=True,
+                  cli_precondition=None, tc_filter=None, workers=DEFAULT_WORKERS):
     """Run all test cases in test_plan.json."""
     ensure_outputs_dir()
     test_plan_path = Path(test_plan_path)
@@ -571,12 +701,10 @@ def run_all_tests(test_plan_path=DEFAULT_TEST_PLAN_PATH, base_url=None, headless
         raise ValueError("test_plan.json의 test_cases는 배열이어야 합니다.")
 
     resolved_base_url = resolve_base_url(test_plan, cli_base_url=base_url)
-    # CLI로 전달된 precondition이 있으면 test_plan의 precondition보다 우선
     global_precondition = cli_precondition if cli_precondition is not None else test_plan.get("precondition")
-    compare_func = load_compare_function()
-    compare_records = []
 
     # compare_with_reference 액션이 있는데 스크립트가 없으면 조기 경고
+    compare_func = load_compare_function()
     if compare_func is None:
         has_compare = any(
             act.get("action") == "compare_with_reference"
@@ -587,61 +715,68 @@ def run_all_tests(test_plan_path=DEFAULT_TEST_PLAN_PATH, base_url=None, headless
             print("[WARN] compare_screenshot.py를 로드할 수 없습니다. compare_with_reference 액션은 실패합니다.")
             print(f"  경로: .cursor/skills/qa-automation/scripts/compare_screenshot.py")
 
-    summary = {"total": 0, "passed": 0, "failed": 0, "skipped": 0, "errors": 0}
-    category_summary = {
-        cat: {"total": 0, "passed": 0, "failed": 0, "skipped": 0, "errors": 0} for cat in SUPPORTED_CATEGORIES
-    }
-    results = []
+    # TC 필터링
+    filtered_tcs = [tc for tc in test_cases if not tc_filter or tc.get("tc_id", "") in tc_filter]
+    if not filtered_tcs:
+        print("실행할 TC가 없습니다.")
+        return None
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=headless)
-        context = browser.new_context(viewport={"width": 1280, "height": 800})
-        page = context.new_page()
+    actual_workers = min(workers, len(filtered_tcs))
 
-        for tc in test_cases:
-            tc_id = tc.get("tc_id", "")
+    precondition_aborted = False
+    abort_tc_id = None
+    abort_message = None
 
-            # TC 필터링: --tc 옵션이 있으면 해당 TC만 실행
-            if tc_filter and tc_id not in tc_filter:
-                continue
-
-            summary["total"] += 1
-            name = tc.get("name", "")
-            category = tc.get("category", "basic_function")
-            priority = tc.get("priority", "medium")
-            expected = tc.get("expected", "")
-
-            if category not in category_summary:
-                category_summary[category] = {"total": 0, "passed": 0, "failed": 0, "skipped": 0, "errors": 0}
-            category_summary[category]["total"] += 1
-
-            status, message, elapsed_ms, screenshots = execute_test_case(
-                page,
-                tc,
-                resolved_base_url,
-                compare_func,
-                compare_records,
-                global_precondition=global_precondition,
+    if actual_workers <= 1:
+        # 순차 실행
+        results_data, compare_records, precondition_aborted, abort_tc_id, abort_message = (
+            _worker_run_batch(
+                (filtered_tcs, resolved_base_url, headless, global_precondition)
             )
-            summary[status] += 1
-            category_summary[category][status] += 1
+        )
+    else:
+        # 병렬 실행: TC를 N개 배치로 분배
+        batches = [[] for _ in range(actual_workers)]
+        for i, tc in enumerate(filtered_tcs):
+            batches[i % actual_workers].append(tc)
 
-            print(f"[{tc_id}] {name} -> {status.upper()}: {message}")
-            result_entry = {
-                "tc_id": tc_id,
-                "category": category,
-                "name": name,
-                "status": status,
-                "message": message,
-                "expected": expected,
-                "priority": priority,
-                "elapsed_ms": elapsed_ms,
-            }
-            if screenshots:
-                result_entry["screenshots"] = screenshots
-            results.append(result_entry)
+        batch_args = [
+            (batch, resolved_base_url, headless, global_precondition)
+            for batch in batches if batch
+        ]
 
-        browser.close()
+        print(f"=== 병렬 실행: {len(batch_args)} workers, {len(filtered_tcs)} TCs ===")
+
+        results_data = []
+        compare_records = []
+
+        with ProcessPoolExecutor(max_workers=len(batch_args)) as executor:
+            futures = [executor.submit(_worker_run_batch, args) for args in batch_args]
+            for future in futures:
+                batch_results, batch_compare, batch_aborted, batch_abort_tc, batch_abort_msg = future.result()
+                results_data.extend(batch_results)
+                compare_records.extend(batch_compare)
+                if batch_aborted and not precondition_aborted:
+                    precondition_aborted = True
+                    abort_tc_id = batch_abort_tc
+                    abort_message = batch_abort_msg
+
+    # TC 원래 순서로 정렬
+    tc_order = {tc.get("tc_id"): i for i, tc in enumerate(filtered_tcs)}
+    results_data.sort(key=lambda r: tc_order.get(r["tc_id"], 999))
+
+    # 결과에서 summary 집계
+    summary = {"total": 0, "passed": 0, "failed": 0, "skipped": 0, "errors": 0}
+    category_summary = {}
+    for r in results_data:
+        summary["total"] += 1
+        status = r["status"]
+        summary[status] = summary.get(status, 0) + 1
+        cat = r.get("category", "basic_function")
+        if cat not in category_summary:
+            category_summary[cat] = {"total": 0, "passed": 0, "failed": 0, "skipped": 0, "errors": 0}
+        category_summary[cat]["total"] += 1
+        category_summary[cat][status] = category_summary[cat].get(status, 0) + 1
 
     test_result = {
         "test_plan_id": test_plan.get("test_plan_id", ""),
@@ -649,8 +784,16 @@ def run_all_tests(test_plan_path=DEFAULT_TEST_PLAN_PATH, base_url=None, headless
         "base_url": resolved_base_url,
         "summary": summary,
         "category_summary": category_summary,
-        "results": results,
+        "results": results_data,
     }
+
+    # precondition_abort 정보 포함
+    if precondition_aborted:
+        test_result["precondition_abort"] = {
+            "aborted": True,
+            "tc_id": abort_tc_id,
+            "message": abort_message,
+        }
 
     with open(DEFAULT_TEST_RESULT_PATH, "w", encoding="utf-8") as f:
         json.dump(test_result, f, ensure_ascii=False, indent=2)
@@ -658,13 +801,24 @@ def run_all_tests(test_plan_path=DEFAULT_TEST_PLAN_PATH, base_url=None, headless
     with open(DEFAULT_COMPARE_RESULT_PATH, "w", encoding="utf-8") as f:
         json.dump({"generated_at": datetime.now().isoformat(), "items": compare_records}, f, ensure_ascii=False, indent=2)
 
-    print("\n=== 테스트 완료 ===")
-    print(f"결과 저장: {DEFAULT_TEST_RESULT_PATH}")
-    print(f"비교 결과 저장: {DEFAULT_COMPARE_RESULT_PATH}")
-    print(
-        f"총: {summary['total']}, 통과: {summary['passed']}, 실패: {summary['failed']}, "
-        f"스킵: {summary['skipped']}, 오류: {summary['errors']}"
-    )
+    if precondition_aborted:
+        print(
+            f"\n=== [PRECONDITION ABORT] 테스트 중단됨 ===\n"
+            f"원인 TC: {abort_tc_id}\n"
+            f"메시지: {abort_message}\n"
+            f"결과 저장: {DEFAULT_TEST_RESULT_PATH}\n"
+            f"총: {summary['total']}, 통과: {summary['passed']}, 실패: {summary['failed']}, "
+            f"스킵: {summary['skipped']}, 오류: {summary['errors']}\n"
+            f"\n→ 선택자가 실제 앱 DOM과 일치하는지 확인한 후 test_plan.json을 수정하고 재실행하세요."
+        )
+    else:
+        print("\n=== 테스트 완료 ===")
+        print(f"결과 저장: {DEFAULT_TEST_RESULT_PATH}")
+        print(f"비교 결과 저장: {DEFAULT_COMPARE_RESULT_PATH}")
+        print(
+            f"총: {summary['total']}, 통과: {summary['passed']}, 실패: {summary['failed']}, "
+            f"스킵: {summary['skipped']}, 오류: {summary['errors']}"
+        )
     return test_result
 
 
@@ -675,6 +829,8 @@ def main():
     parser.add_argument("--headed", action="store_true", help="Run browser in headed mode")
     parser.add_argument("--precondition", default=None, help="Precondition JSON string (overrides test_plan precondition)")
     parser.add_argument("--tc", default=None, help="Comma-separated TC IDs to run (e.g. TC_003,TC_015)")
+    parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS,
+                        help=f"병렬 worker 수 (기본: {DEFAULT_WORKERS}, 1이면 순차 실행)")
     args = parser.parse_args()
 
     cli_precondition = None
@@ -689,13 +845,16 @@ def main():
     if args.tc:
         tc_filter = [t.strip() for t in args.tc.split(",")]
 
-    run_all_tests(
+    result = run_all_tests(
         test_plan_path=args.test_plan,
         base_url=args.base_url,
         headless=not args.headed,
         cli_precondition=cli_precondition,
         tc_filter=tc_filter,
+        workers=args.workers,
     )
+    if result and result.get("precondition_abort", {}).get("aborted"):
+        sys.exit(3)  # exit code 3 = precondition_abort
 
 
 if __name__ == "__main__":
